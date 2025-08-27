@@ -1,0 +1,27 @@
+# Loqa Puck - Code Owners
+
+# Global ownership
+* @annabarnes1138
+
+# ESP32 firmware
+/firmware/ @annabarnes1138
+
+# Go test client
+/test-go/ @annabarnes1138
+
+# Audio processing and gRPC
+/test-go/internal/audio/ @annabarnes1138
+/test-go/internal/grpc/ @annabarnes1138
+
+# Docker and deployment
+Dockerfile* @annabarnes1138
+
+# CI/CD
+/.github/ @annabarnes1138
+
+# Dependencies
+/test-go/go.mod @annabarnes1138
+/test-go/go.sum @annabarnes1138
+
+# Documentation
+*.md @annabarnes1138
