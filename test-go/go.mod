@@ -6,8 +6,8 @@ replace github.com/loqalabs/loqa-proto/go => ../../loqa-proto/go
 
 require (
 	github.com/gordonklaus/portaudio v0.0.0-20250206071425-98a94950218b
-	google.golang.org/grpc v1.75.0
 	github.com/loqalabs/loqa-proto/go v0.0.0-00010101000000-000000000000
+	google.golang.org/grpc v1.75.0
 )
 
 require (
