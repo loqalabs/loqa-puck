@@ -1,51 +1,104 @@
-# 🎤 Loqa Puck
+# Loqa Test Puck Service
 
-Embedded and test clients for capturing and streaming audio to the Loqa Hub.
-
-## Overview
-
-Loqa Puck provides audio input devices for the Loqa voice assistant platform:
-- ESP32-based embedded pucks with local wake word detection
-- Go-based test clients for development and testing
-- Audio streaming via gRPC to the Hub service
-
-## Components
-
-### ESP32 Firmware
-- Local wake word detection
-- Audio capture and streaming
-- Low-power operation
-- WiFi connectivity
-
-### Go Test Puck
-- Development and testing client
-- PortAudio integration for microphone access
-- Configurable wake word sensitivity
-- Debug logging and monitoring
+A test implementation of the Loqa puck that captures audio and streams it to the hub via gRPC.
 
 ## Features
 
-- 🎙️ **Audio Capture**: High-quality audio recording and streaming
-- 🔊 **Wake Word Detection**: Local "Hey Loqa" detection
-- 📡 **gRPC Streaming**: Real-time audio transmission to Hub
-- 🔋 **Low Power**: Optimized for battery operation (ESP32)
-- 🛠️ **Development Tools**: Test clients for rapid prototyping
+- 🎤 **Real-time audio capture** with PortAudio
+- 🎧 **Voice Activity Detection** with pre-buffering
+- 🎯 **Wake word detection** for "Hey Loqa"
+- 📡 **gRPC audio streaming** to hub
+- 🔊 **Audio playback** for TTS responses
+- ⚡ **Production-like architecture**
 
-## Hardware Requirements
+## Usage
 
-### ESP32 Puck
-- ESP32-S3 with PSRAM
-- I2S microphone (INMP441 or similar)
-- WiFi connectivity
+```bash
+# Build the puck service
+cd test-go
+go build -o test-puck ./cmd
 
-### Test Puck
-- Computer with microphone
-- PortAudio-compatible audio system
+# Run the puck (hub must be running on localhost:50051)
+./test-puck
 
-## Getting Started
+# Run with custom hub address and puck ID
+./test-puck -hub hub.local:50051 -id kitchen-puck
+```
 
-See the main [Loqa documentation](https://github.com/loqalabs/loqa-docs) for setup and usage instructions.
+## Wake Word Detection
 
-## License
+The puck includes wake word detection for "Hey Loqa":
 
-Licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+- **Wake word**: "Hey Loqa" 
+- **Algorithm**: Simple energy envelope pattern matching
+- **Threshold**: Configurable confidence level (default: 0.7)
+- **Status**: Enabled by default
+
+The puck will only transmit audio to the hub after detecting the wake word, providing privacy and reducing network traffic.
+
+## Architecture
+
+```
+Puck (this service)     gRPC Stream      Hub (Docker)
+┌─────────────────┐    ──────────────►   ┌─────────────┐
+│ Audio Capture   │    Audio Chunks     │ LLM Parser  │
+│ Voice Detection │                     │ Commands    │
+│ Wake Word Det   │    ◄──────────────  │ Responses   │
+│ Audio Playback  │    Command/TTS      │ Device Ctrl │
+└─────────────────┘                     └─────────────┘
+```
+
+## gRPC Protocol
+
+- **StreamAudio**: Bidirectional stream for audio chunks and responses
+- **PlayAudio**: Stream TTS audio from hub to puck
+- **Audio format**: 16kHz, mono, PCM
+
+## Testing
+
+Use the provided test script to verify wake word functionality:
+
+```bash
+# Run the test environment
+./tools/test-wake-word.sh
+
+# In another terminal, run the puck
+cd puck/test-go
+./test-puck --hub localhost:50051
+
+# Test by saying: "Hey Loqa, turn on the lights"
+```
+
+## Implementation Status
+
+- [x] Connect to hub service
+- [x] Test end-to-end audio pipeline  
+- [x] Add wake word detection
+- [ ] Implement TTS audio playback
+- [ ] Add device-specific configuration
+- [ ] Optimize power consumption
+
+## Development
+
+### Building
+```bash
+# Use the project build script
+./tools/build.sh
+
+# Or build manually
+cd puck/test-go
+go mod tidy
+go build -o test-puck ./cmd
+```
+
+### Configuration
+Environment variables:
+- `HUB_ADDRESS`: Hub gRPC address (default: localhost:50051)
+- `PUCK_ID`: Unique puck identifier (default: test-puck)
+- `WAKE_WORD_THRESHOLD`: Detection confidence (default: 0.7)
+- `AUDIO_SAMPLE_RATE`: Audio capture rate (default: 16000)
+
+### Hardware Requirements
+- Microphone input
+- Audio output (for TTS responses)
+- Network connectivity to hub
