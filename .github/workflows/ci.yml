@@ -96,7 +96,7 @@ jobs:
         go build -v -ldflags="-w -s" -o bin/test-puck-${{ matrix.os }}-${{ matrix.arch }} ./cmd
 
     - name: Upload binary artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-puck-${{ matrix.os }}-${{ matrix.arch }}
         path: test-go/bin/test-puck-${{ matrix.os }}-${{ matrix.arch }}*
@@ -121,7 +121,7 @@ jobs:
         idf.py build
 
     - name: Upload firmware artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: esp32-firmware
         path: firmware/build/*.bin
