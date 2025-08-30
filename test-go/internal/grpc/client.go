@@ -40,9 +40,8 @@ func NewPuckClient(hubAddress, puckID string) *PuckClient {
 func (pc *PuckClient) Connect() error {
 	log.Printf("🔗 Puck: Connecting to hub at %s", pc.hubAddress)
 
-	conn, err := grpc.DialContext(pc.ctx, pc.hubAddress, 
+	conn, err := grpc.NewClient(pc.hubAddress, 
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to connect to hub: %w", err)
@@ -169,15 +168,3 @@ func float32ArrayToBytes(data []float32) []byte {
 	return bytes
 }
 
-// Helper function to convert bytes to float32 array
-func bytesToFloat32Array(data []byte) []float32 {
-	// Convert 16-bit PCM bytes to float32 samples
-	samples := make([]float32, len(data)/2)
-	for i := 0; i < len(samples); i++ {
-		// Reconstruct int16 from bytes
-		val := int16(data[i*2]) | int16(data[i*2+1])<<8
-		// Convert to float32 [-1,1]
-		samples[i] = float32(val) / 32767.0
-	}
-	return samples
-}
