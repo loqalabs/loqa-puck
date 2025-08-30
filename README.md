@@ -1,5 +1,7 @@
 # Loqa Test Puck Service
 
+[![CI/CD Pipeline](https://github.com/loqalabs/loqa-puck/actions/workflows/ci.yml/badge.svg)](https://github.com/loqalabs/loqa-puck/actions/workflows/ci.yml)
+
 A test implementation of the Loqa puck that captures audio and streams it to the hub via gRPC.
 
 ## Features
