@@ -77,11 +77,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: test-go
     
-    strategy:
-      matrix:
-        os: [linux]
-        arch: [amd64, arm64]
-    
     steps:
     - name: Checkout loqa-puck
       uses: actions/checkout@v4
@@ -110,14 +105,13 @@ jobs:
     - name: Build binary
       run: |
         cd loqa-puck/test-go
-        GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
-        go build -v -ldflags="-w -s" -o bin/test-puck-${{ matrix.os }}-${{ matrix.arch }} ./cmd
+        go build -v -ldflags="-w -s" -o bin/test-puck-linux-amd64 ./cmd
 
     - name: Upload binary artifact
       uses: actions/upload-artifact@v4
       with:
-        name: test-puck-${{ matrix.os }}-${{ matrix.arch }}
-        path: loqa-puck/test-go/bin/test-puck-${{ matrix.os }}-${{ matrix.arch }}*
+        name: test-puck-linux-amd64
+        path: loqa-puck/test-go/bin/test-puck-linux-amd64
 
   build-firmware:
     name: Build ESP32 Firmware
