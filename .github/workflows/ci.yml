@@ -18,15 +18,23 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
+    - name: Checkout loqa-puck
       uses: actions/checkout@v4
+      with:
+        path: loqa-puck
+
+    - name: Checkout loqa-proto
+      uses: actions/checkout@v4
+      with:
+        repository: loqalabs/loqa-proto
+        path: loqa-proto
 
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
         go-version: '1.24.3'
         cache: true
-        cache-dependency-path: test-go/go.sum
+        cache-dependency-path: loqa-puck/test-go/go.sum
 
     - name: Verify Go version
       run: go version
@@ -38,30 +46,30 @@ jobs:
 
     - name: Download dependencies
       run: |
-        cd test-go
+        cd loqa-puck/test-go
         go mod download
 
     - name: Run tests
       run: |
-        cd test-go
+        cd loqa-puck/test-go
         go test -v -race -coverprofile=coverage.out ./...
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
       with:
-        file: ./test-go/coverage.out
+        file: ./loqa-puck/test-go/coverage.out
         flags: puck-go
         name: loqa-puck-go
 
     - name: Run go vet
       run: |
-        cd test-go
+        cd loqa-puck/test-go
         go vet ./...
 
     - name: Run staticcheck
       run: |
         go install honnef.co/go/tools/cmd/staticcheck@latest
-        cd test-go
+        cd loqa-puck/test-go
         staticcheck ./...
 
   build-go:
@@ -78,8 +86,16 @@ jobs:
             arch: arm64
     
     steps:
-    - name: Checkout code
+    - name: Checkout loqa-puck
       uses: actions/checkout@v4
+      with:
+        path: loqa-puck
+
+    - name: Checkout loqa-proto
+      uses: actions/checkout@v4
+      with:
+        repository: loqalabs/loqa-proto
+        path: loqa-proto
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -97,7 +113,7 @@ jobs:
 
     - name: Build binary
       run: |
-        cd test-go
+        cd loqa-puck/test-go
         GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
         go build -v -ldflags="-w -s" -o bin/test-puck-${{ matrix.os }}-${{ matrix.arch }} ./cmd
 
@@ -105,15 +121,17 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: test-puck-${{ matrix.os }}-${{ matrix.arch }}
-        path: test-go/bin/test-puck-${{ matrix.os }}-${{ matrix.arch }}*
+        path: loqa-puck/test-go/bin/test-puck-${{ matrix.os }}-${{ matrix.arch }}*
 
   build-firmware:
     name: Build ESP32 Firmware
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
+    - name: Checkout loqa-puck
       uses: actions/checkout@v4
+      with:
+        path: loqa-puck
 
     - name: Set up ESP-IDF
       uses: espressif/esp-idf-ci-action@v1
@@ -123,14 +141,14 @@ jobs:
 
     - name: Build firmware
       run: |
-        cd firmware
+        cd loqa-puck/firmware
         idf.py build
 
     - name: Upload firmware artifact
       uses: actions/upload-artifact@v4
       with:
         name: esp32-firmware
-        path: firmware/build/*.bin
+        path: loqa-puck/firmware/build/*.bin
 
   docker:
     name: Build and Push Docker Image
@@ -143,8 +161,16 @@ jobs:
       packages: write
 
     steps:
-    - name: Checkout code
+    - name: Checkout loqa-puck
       uses: actions/checkout@v4
+      with:
+        path: loqa-puck
+
+    - name: Checkout loqa-proto
+      uses: actions/checkout@v4
+      with:
+        repository: loqalabs/loqa-proto
+        path: loqa-proto
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -172,6 +198,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
+        file: ./loqa-puck/Dockerfile
         platforms: linux/amd64,linux/arm64
         push: true
         tags: ${{ steps.meta.outputs.tags }}
