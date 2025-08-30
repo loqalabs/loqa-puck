@@ -9,10 +9,11 @@ RUN apk add --no-cache \
     pkgconfig
 
 WORKDIR /app
-COPY test-go/go.mod test-go/go.sum ./
+COPY loqa-proto/ loqa-proto/
+COPY loqa-puck/test-go/go.mod loqa-puck/test-go/go.sum ./
 RUN go mod download
 
-COPY test-go/ .
+COPY loqa-puck/test-go/ .
 RUN go build -o test-puck ./cmd
 
 FROM alpine:latest
