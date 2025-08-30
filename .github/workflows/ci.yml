@@ -113,32 +113,32 @@ jobs:
         name: test-puck-linux-amd64
         path: loqa-puck/test-go/bin/test-puck-linux-amd64
 
-  build-firmware:
-    name: Build ESP32 Firmware
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout loqa-puck
-      uses: actions/checkout@v4
-      with:
-        path: loqa-puck
+  # build-firmware:
+  #   name: Build ESP32 Firmware
+  #   runs-on: ubuntu-latest
+  #   
+  #   steps:
+  #   - name: Checkout loqa-puck
+  #     uses: actions/checkout@v4
+  #     with:
+  #       path: loqa-puck
 
-    - name: Set up ESP-IDF
-      uses: espressif/esp-idf-ci-action@v1
-      with:
-        esp_idf_version: v5.1
-        target: esp32s3
+  #   - name: Set up ESP-IDF
+  #     uses: espressif/esp-idf-ci-action@v1
+  #     with:
+  #       esp_idf_version: v5.1
+  #       target: esp32s3
 
-    - name: Build firmware
-      run: |
-        cd loqa-puck/firmware
-        idf.py build
+  #   - name: Build firmware
+  #     run: |
+  #       cd loqa-puck/firmware
+  #       idf.py build
 
-    - name: Upload firmware artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: esp32-firmware
-        path: loqa-puck/firmware/build/*.bin
+  #   - name: Upload firmware artifact
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: esp32-firmware
+  #       path: loqa-puck/firmware/build/*.bin
 
   docker:
     name: Build and Push Docker Image
