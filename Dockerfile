@@ -8,14 +8,16 @@ RUN apk add --no-cache \
     musl-dev \
     pkgconfig
 
-WORKDIR /build/test-go
+WORKDIR /build
+# Copy loqa-proto dependency to match the replace path ../../loqa-proto/go
+COPY loqa-proto/ loqa-proto/
 
-# Copy go module files first
-COPY test-go/go.mod test-go/go.sum ./
+# Set up the test-go directory structure
+WORKDIR /build/loqa-puck/test-go
+COPY loqa-puck/test-go/go.mod loqa-puck/test-go/go.sum ./
 RUN go mod download
 
-# Copy test-go source code
-COPY test-go/ .
+COPY loqa-puck/test-go/ .
 RUN go build -o test-puck ./cmd
 
 FROM alpine:latest
@@ -26,7 +28,7 @@ RUN apk --no-cache add \
 
 WORKDIR /root/
 
-COPY --from=builder /build/test-go/test-puck .
+COPY --from=builder /build/loqa-puck/test-go/test-puck .
 
 ENV HUB_ADDRESS=hub:50051
 ENV PUCK_ID=docker-puck
