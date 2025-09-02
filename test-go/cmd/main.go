@@ -29,7 +29,7 @@ import (
 
 	"github.com/loqalabs/loqa-puck/test-go/internal/audio"
 	"github.com/loqalabs/loqa-puck/test-go/internal/grpc"
-	pb "github.com/loqalabs/loqa-proto/go"
+	pb "github.com/loqalabs/loqa-proto/go/audio"
 )
 
 func main() {
