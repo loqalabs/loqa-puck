@@ -27,7 +27,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "github.com/loqalabs/loqa-proto/go"
+	pb "github.com/loqalabs/loqa-proto/go/audio"
 	"github.com/loqalabs/loqa-puck/test-go/internal/audio"
 )
 
