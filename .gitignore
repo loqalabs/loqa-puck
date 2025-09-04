@@ -13,6 +13,7 @@ dist/
 *.dll
 *.so
 *.dylib
+test-puck
 go.work
 go.work.sum
 
