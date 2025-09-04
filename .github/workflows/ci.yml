@@ -19,18 +19,18 @@ jobs:
     
     steps:
     - name: Checkout loqa-puck
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: loqa-puck
 
     - name: Checkout loqa-proto
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: loqalabs/loqa-proto
         path: loqa-proto
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.22.2'
         cache: true
@@ -55,7 +55,7 @@ jobs:
         go test -v -race -coverprofile=coverage.out ./...
 
     - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       with:
         file: ./loqa-puck/test-go/coverage.out
         flags: puck-go
@@ -79,18 +79,18 @@ jobs:
     
     steps:
     - name: Checkout loqa-puck
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: loqa-puck
 
     - name: Checkout loqa-proto
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: loqalabs/loqa-proto
         path: loqa-proto
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.22.2'
 
@@ -119,7 +119,7 @@ jobs:
   #   
   #   steps:
   #   - name: Checkout loqa-puck
-  #     uses: actions/checkout@v4
+  #     uses: actions/checkout@v5
   #     with:
   #       path: loqa-puck
 
@@ -152,12 +152,12 @@ jobs:
 
     steps:
     - name: Checkout loqa-puck
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: loqa-puck
 
     - name: Checkout loqa-proto
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: loqalabs/loqa-proto
         path: loqa-proto
@@ -186,7 +186,7 @@ jobs:
           type=raw,value=latest,enable={{is_default_branch}}
 
     - name: Build and push Docker image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: .
         file: ./loqa-puck/Dockerfile
@@ -208,7 +208,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
