@@ -12,6 +12,11 @@ env:
   REGISTRY: docker.io
   IMAGE_NAME: loqalabs/loqa-test-puck
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   test-go:
     name: Test Go Client
