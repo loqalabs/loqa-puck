@@ -145,15 +145,74 @@ jobs:
   #       name: esp32-firmware
   #       path: loqa-puck/firmware/build/*.bin
 
-  docker:
-    name: Build and Push Docker Image
+  security:
+    name: Security Analysis
     runs-on: ubuntu-latest
-    needs: test-go
+    
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    
+    steps:
+    - name: Checkout loqa-puck
+      uses: actions/checkout@v5
+      with:
+        path: loqa-puck
+
+    - name: Checkout loqa-proto
+      uses: actions/checkout@v5
+      with:
+        repository: loqalabs/loqa-proto
+        path: loqa-proto
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: go
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.23.0'
+
+    - name: Install PortAudio dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y portaudio19-dev
+
+    - name: Build application for CodeQL
+      run: |
+        cd loqa-puck/test-go
+        go build -v ./...
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: './loqa-puck'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      if: always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  docker:
+    name: Build and Push Docker Image with Security
+    runs-on: ubuntu-latest
+    needs: [test-go, security]
     if: github.event_name != 'pull_request'
     
     permissions:
       contents: read
       packages: write
+      security-events: write
 
     steps:
     - name: Checkout loqa-puck
@@ -192,6 +251,7 @@ jobs:
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
+      id: build
       with:
         context: .
         file: ./loqa-puck/Dockerfile
@@ -201,30 +261,31 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        sbom: true
+        provenance: true
 
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
+    - name: Generate SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        format: spdx-json
+        output-file: sbom.spdx.json
 
-    - name: Run Trivy vulnerability scanner
+    - name: Upload SBOM
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom-test-puck
+        path: sbom.spdx.json
+
+    - name: Scan container image
       uses: aquasecurity/trivy-action@master
       with:
-        scan-type: 'fs'
-        scan-ref: '.'
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         format: 'sarif'
-        output: 'trivy-results.sarif'
+        output: 'container-scan-results.sarif'
 
-    - name: Upload Trivy scan results
+    - name: Upload container scan results
       if: always()
       uses: github/codeql-action/upload-sarif@v3
       with:
-        sarif_file: 'trivy-results.sarif'
+        sarif_file: 'container-scan-results.sarif'
