@@ -19,6 +19,10 @@ go.work.sum
 # Test binary, built with `go test -c`
 *.test
 
+# Go binaries (including test binaries)
+test-puck
+test-go/test-puck
+
 # Output of the go coverage tool
 *.out
 
