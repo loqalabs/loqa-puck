@@ -1,4 +1,4 @@
-module github.com/loqalabs/loqa-puck/test-go
+module github.com/loqalabs/loqa-relay/test-go
 
 go 1.23.0
 

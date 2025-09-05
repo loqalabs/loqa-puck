@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: loqalabs/loqa-test-puck
+  IMAGE_NAME: loqalabs/loqa-test-relay
 
 jobs:
   test-go:
@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout loqa-puck
+    - name: Checkout loqa-relay
       uses: actions/checkout@v4
       with:
-        path: loqa-puck
+        path: loqa-relay
 
     - name: Checkout loqa-proto
       uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
       with:
         go-version: '1.22.2'
         cache: true
-        cache-dependency-path: loqa-puck/test-go/go.sum
+        cache-dependency-path: loqa-relay/test-go/go.sum
 
     - name: Verify Go version
       run: go version
@@ -46,30 +46,30 @@ jobs:
 
     - name: Download dependencies
       run: |
-        cd loqa-puck/test-go
+        cd loqa-relay/test-go
         go mod download
 
     - name: Run tests
       run: |
-        cd loqa-puck/test-go
+        cd loqa-relay/test-go
         go test -v -race -coverprofile=coverage.out ./...
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
       with:
-        file: ./loqa-puck/test-go/coverage.out
-        flags: puck-go
-        name: loqa-puck-go
+        file: ./loqa-relay/test-go/coverage.out
+        flags: relay-go
+        name: loqa-relay-go
 
     - name: Run go vet
       run: |
-        cd loqa-puck/test-go
+        cd loqa-relay/test-go
         go vet ./...
 
     - name: Run staticcheck
       run: |
         go install honnef.co/go/tools/cmd/staticcheck@latest
-        cd loqa-puck/test-go
+        cd loqa-relay/test-go
         staticcheck ./...
 
   build-go:
@@ -78,10 +78,10 @@ jobs:
     needs: test-go
     
     steps:
-    - name: Checkout loqa-puck
+    - name: Checkout loqa-relay
       uses: actions/checkout@v4
       with:
-        path: loqa-puck
+        path: loqa-relay
 
     - name: Checkout loqa-proto
       uses: actions/checkout@v4
@@ -104,24 +104,24 @@ jobs:
 
     - name: Build binary
       run: |
-        cd loqa-puck/test-go
-        go build -v -ldflags="-w -s" -o bin/test-puck-linux-amd64 ./cmd
+        cd loqa-relay/test-go
+        go build -v -ldflags="-w -s" -o bin/test-relay-linux-amd64 ./cmd
 
     - name: Upload binary artifact
       uses: actions/upload-artifact@v4
       with:
-        name: test-puck-linux-amd64
-        path: loqa-puck/test-go/bin/test-puck-linux-amd64
+        name: test-relay-linux-amd64
+        path: loqa-relay/test-go/bin/test-relay-linux-amd64
 
   # build-firmware:
   #   name: Build ESP32 Firmware
   #   runs-on: ubuntu-latest
   #   
   #   steps:
-  #   - name: Checkout loqa-puck
+  #   - name: Checkout loqa-relay
   #     uses: actions/checkout@v4
   #     with:
-  #       path: loqa-puck
+  #       path: loqa-relay
 
   #   - name: Set up ESP-IDF
   #     uses: espressif/esp-idf-ci-action@v1
@@ -131,14 +131,14 @@ jobs:
 
   #   - name: Build firmware
   #     run: |
-  #       cd loqa-puck/firmware
+  #       cd loqa-relay/firmware
   #       idf.py build
 
   #   - name: Upload firmware artifact
   #     uses: actions/upload-artifact@v4
   #     with:
   #       name: esp32-firmware
-  #       path: loqa-puck/firmware/build/*.bin
+  #       path: loqa-relay/firmware/build/*.bin
 
   docker:
     name: Build and Push Docker Image
@@ -151,10 +151,10 @@ jobs:
       packages: write
 
     steps:
-    - name: Checkout loqa-puck
+    - name: Checkout loqa-relay
       uses: actions/checkout@v4
       with:
-        path: loqa-puck
+        path: loqa-relay
 
     - name: Checkout loqa-proto
       uses: actions/checkout@v4
@@ -189,7 +189,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: ./loqa-puck/Dockerfile
+        file: ./loqa-relay/Dockerfile
         platforms: linux/amd64,linux/arm64
         push: true
         tags: ${{ steps.meta.outputs.tags }}

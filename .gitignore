@@ -1,4 +1,4 @@
-# Loqa Puck .gitignore
+# Loqa Relay .gitignore
 
 # Build artifacts
 bin/
@@ -20,8 +20,8 @@ go.work.sum
 *.test
 
 # Go binaries (including test binaries)
-test-puck
-test-go/test-puck
+test-relay
+test-go/test-relay
 
 # Output of the go coverage tool
 *.out
