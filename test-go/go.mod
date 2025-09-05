@@ -1,6 +1,6 @@
 module github.com/loqalabs/loqa-puck/test-go
 
-go 1.24
+go 1.22.2
 
 replace github.com/loqalabs/loqa-proto/go => ../../loqa-proto/go
 
