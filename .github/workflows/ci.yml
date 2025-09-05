@@ -19,273 +19,39 @@ permissions:
 
 jobs:
   test-go:
-    name: Test Go Client
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout loqa-puck
-      uses: actions/checkout@v5
-      with:
-        path: loqa-puck
-
-    - name: Checkout loqa-proto
-      uses: actions/checkout@v5
-      with:
-        repository: loqalabs/loqa-proto
-        path: loqa-proto
-
-    - name: Set up Go
-      uses: actions/setup-go@v6
-      with:
-        go-version: '1.23.0'
-        cache: true
-        cache-dependency-path: loqa-puck/test-go/go.sum
-
-    - name: Verify Go version
-      run: go version
-
-    - name: Install PortAudio dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y portaudio19-dev
-
-    - name: Download dependencies
-      run: |
-        cd loqa-puck/test-go
-        go mod download
-
-    - name: Run tests
-      run: |
-        cd loqa-puck/test-go
-        go test -v -race -coverprofile=coverage.out ./...
-
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v5
-      with:
-        file: ./loqa-puck/test-go/coverage.out
-        flags: puck-go
-        name: loqa-puck-go
-
-    - name: Run go vet
-      run: |
-        cd loqa-puck/test-go
-        go vet ./...
-
-    - name: Run staticcheck
-      run: |
-        go install honnef.co/go/tools/cmd/staticcheck@latest
-        cd loqa-puck/test-go
-        staticcheck ./...
+    name: Test Go Client with Hardware
+    uses: loqalabs/.github/.github/workflows/go/test-with-hardware.yml@main
+    with:
+      go-version: '1.23.0'
+      proto-repo: 'loqalabs/loqa-proto'
+      system-packages: 'portaudio19-dev'
+      working-directory: 'test-go'
+      coverage-flag: 'puck-go'
+      coverage-name: 'loqa-puck-go'
 
   build-go:
     name: Build Go Client
-    runs-on: ubuntu-latest
     needs: test-go
-    
-    steps:
-    - name: Checkout loqa-puck
-      uses: actions/checkout@v5
-      with:
-        path: loqa-puck
-
-    - name: Checkout loqa-proto
-      uses: actions/checkout@v5
-      with:
-        repository: loqalabs/loqa-proto
-        path: loqa-proto
-
-    - name: Set up Go
-      uses: actions/setup-go@v6
-      with:
-        go-version: '1.23.0'
-
-    - name: Verify Go version
-      run: go version
-
-    - name: Install PortAudio dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y portaudio19-dev
-
-    - name: Build binary
-      run: |
-        cd loqa-puck/test-go
-        go build -v -ldflags="-w -s" -o bin/test-puck-linux-amd64 ./cmd
-
-    - name: Upload binary artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-puck-linux-amd64
-        path: loqa-puck/test-go/bin/test-puck-linux-amd64
-
-  # build-firmware:
-  #   name: Build ESP32 Firmware
-  #   runs-on: ubuntu-latest
-  #   
-  #   steps:
-  #   - name: Checkout loqa-puck
-  #     uses: actions/checkout@v5
-  #     with:
-  #       path: loqa-puck
-
-  #   - name: Set up ESP-IDF
-  #     uses: espressif/esp-idf-ci-action@v1
-  #     with:
-  #       esp_idf_version: v5.1
-  #       target: esp32s3
-
-  #   - name: Build firmware
-  #     run: |
-  #       cd loqa-puck/firmware
-  #       idf.py build
-
-  #   - name: Upload firmware artifact
-  #     uses: actions/upload-artifact@v4
-  #     with:
-  #       name: esp32-firmware
-  #       path: loqa-puck/firmware/build/*.bin
+    uses: loqalabs/.github/.github/workflows/go/build.yml@main
+    with:
+      go-version: '1.23.0'
+      binary-name: 'test-puck-linux-amd64'
 
   security:
     name: Security Analysis
-    runs-on: ubuntu-latest
-    
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-    
-    steps:
-    - name: Checkout loqa-puck
-      uses: actions/checkout@v5
-      with:
-        path: loqa-puck
-
-    - name: Checkout loqa-proto
-      uses: actions/checkout@v5
-      with:
-        repository: loqalabs/loqa-proto
-        path: loqa-proto
-
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: go
-
-    - name: Set up Go
-      uses: actions/setup-go@v6
-      with:
-        go-version: '1.23.0'
-
-    - name: Install PortAudio dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y portaudio19-dev
-
-    - name: Build application for CodeQL
-      run: |
-        cd loqa-puck/test-go
-        go build -v ./...
-
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
-
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: './loqa-puck'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-
-    - name: Upload Trivy scan results
-      if: always() && hashFiles('trivy-results.sarif') != ''
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: 'trivy-results.sarif'
+    uses: loqalabs/.github/.github/workflows/security-scan.yml@main
+    with:
+      language: 'go'
+      go-version: '1.23.0'
 
   docker:
-    name: Build and Push Docker Image with Security
-    runs-on: ubuntu-latest
+    name: Docker Build and Security
     needs: [test-go, security]
     if: github.event_name != 'pull_request'
-    
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-
-    steps:
-    - name: Checkout loqa-puck
-      uses: actions/checkout@v5
-      with:
-        path: loqa-puck
-
-    - name: Checkout loqa-proto
-      uses: actions/checkout@v5
-      with:
-        repository: loqalabs/loqa-proto
-        path: loqa-proto
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_TOKEN }}
-
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v6
-      id: build
-      with:
-        context: .
-        file: ./loqa-puck/Dockerfile
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        sbom: true
-        provenance: true
-
-    - name: Generate SBOM
-      uses: anchore/sbom-action@v0
-      with:
-        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        format: spdx-json
-        output-file: sbom.spdx.json
-
-    - name: Upload SBOM
-      uses: actions/upload-artifact@v4
-      with:
-        name: sbom-test-puck
-        path: sbom.spdx.json
-
-    - name: Scan container image
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        format: 'sarif'
-        output: 'container-scan-results.sarif'
-
-    - name: Upload container scan results
-      if: always() && hashFiles('container-scan-results.sarif') != ''
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: 'container-scan-results.sarif'
+    uses: loqalabs/.github/.github/workflows/docker-build-and-push.yml@main
+    with:
+      registry: docker.io
+      image-name: loqalabs/loqa-test-puck
+    secrets:
+      docker-username: ${{ secrets.DOCKER_USERNAME }}
+      docker-token: ${{ secrets.DOCKER_TOKEN }}
