@@ -18,8 +18,12 @@ permissions:
   actions: read
 
 jobs:
+  checkout-proto:
+    uses: loqalabs/.github/.github/workflows/go-checkout-proto.yml@main
+
   test-go:
     name: Test Go Client with Hardware
+    needs: checkout-proto
     uses: loqalabs/.github/.github/workflows/go-test-with-hardware.yml@main
     with:
       go-version: '1.23.0'
@@ -31,7 +35,7 @@ jobs:
 
   build-go:
     name: Build Go Client
-    needs: test-go
+    needs: [checkout-proto, test-go]
     uses: loqalabs/.github/.github/workflows/go-build.yml@main
     with:
       go-version: '1.23.0'
