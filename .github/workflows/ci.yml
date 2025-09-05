@@ -50,6 +50,7 @@ jobs:
     with:
       language: 'go'
       go-version: '1.23.0'
+      working-directory: 'test-go'
 
   docker:
     name: Docker Build and Security
