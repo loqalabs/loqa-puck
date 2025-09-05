@@ -36,6 +36,7 @@ jobs:
     with:
       go-version: '1.23.0'
       binary-name: 'test-puck-linux-amd64'
+      working-directory: 'test-go'
 
   security:
     name: Security Analysis
