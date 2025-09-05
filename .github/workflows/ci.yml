@@ -20,7 +20,7 @@ permissions:
 jobs:
   test-go:
     name: Test Go Client with Hardware
-    uses: loqalabs/.github/.github/workflows/go/test-with-hardware.yml@main
+    uses: loqalabs/.github/.github/workflows/go-test-with-hardware.yml@main
     with:
       go-version: '1.23.0'
       proto-repo: 'loqalabs/loqa-proto'
@@ -32,7 +32,7 @@ jobs:
   build-go:
     name: Build Go Client
     needs: test-go
-    uses: loqalabs/.github/.github/workflows/go/build.yml@main
+    uses: loqalabs/.github/.github/workflows/go-build.yml@main
     with:
       go-version: '1.23.0'
       binary-name: 'test-puck-linux-amd64'
