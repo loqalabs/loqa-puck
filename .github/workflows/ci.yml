@@ -42,6 +42,7 @@ jobs:
       binary-name: 'test-puck-linux-amd64'
       working-directory: 'test-go'
       proto-repo: 'loqalabs/loqa-proto'
+      system-packages: 'portaudio19-dev'
 
   security:
     name: Security Analysis
