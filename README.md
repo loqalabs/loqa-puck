@@ -3,11 +3,11 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL--3.0-blue?style=for-the-badge)](LICENSE)
 [![Made with ❤️ by LoqaLabs](https://img.shields.io/badge/Made%20with%20%E2%9D%A4%EF%B8%8F-by%20LoqaLabs-ffb6c1?style=for-the-badge)](https://loqalabs.com)
 
-# Loqa Test Puck Service
+# Loqa Test Relay Service
 
-[![CI/CD Pipeline](https://github.com/loqalabs/loqa-puck/actions/workflows/ci.yml/badge.svg)](https://github.com/loqalabs/loqa-puck/actions/workflows/ci.yml)
+[![CI/CD Pipeline](https://github.com/loqalabs/loqa-relay/actions/workflows/ci.yml/badge.svg)](https://github.com/loqalabs/loqa-relay/actions/workflows/ci.yml)
 
-A test implementation of the Loqa puck that captures audio and streams it to the hub via gRPC.
+A test implementation of the Loqa relay that captures audio and streams it to the hub via gRPC.
 
 ## Features
 
@@ -21,32 +21,32 @@ A test implementation of the Loqa puck that captures audio and streams it to the
 ## Usage
 
 ```bash
-# Build the puck service
+# Build the relay service
 cd test-go
-go build -o test-puck ./cmd
+go build -o test-relay ./cmd
 
-# Run the puck (hub must be running on localhost:50051)
-./test-puck
+# Run the relay (hub must be running on localhost:50051)
+./test-relay
 
-# Run with custom hub address and puck ID
-./test-puck -hub hub.local:50051 -id kitchen-puck
+# Run with custom hub address and relay ID
+./test-relay -hub hub.local:50051 -id kitchen-relay
 ```
 
 ## Wake Word Detection
 
-The puck includes wake word detection for "Hey Loqa":
+The relay includes wake word detection for "Hey Loqa":
 
 - **Wake word**: "Hey Loqa" 
 - **Algorithm**: Simple energy envelope pattern matching
 - **Threshold**: Configurable confidence level (default: 0.7)
 - **Status**: Enabled by default
 
-The puck will only transmit audio to the hub after detecting the wake word, providing privacy and reducing network traffic.
+The relay will only transmit audio to the hub after detecting the wake word, providing privacy and reducing network traffic.
 
 ## Architecture
 
 ```
-Puck (this service)     gRPC Stream      Hub (Docker)
+Relay (this service)     gRPC Stream      Hub (Docker)
 ┌─────────────────┐    ──────────────►   ┌─────────────┐
 │ Audio Capture   │    Audio Chunks     │ LLM Parser  │
 │ Voice Detection │                     │ Commands    │
@@ -58,7 +58,7 @@ Puck (this service)     gRPC Stream      Hub (Docker)
 ## gRPC Protocol
 
 - **StreamAudio**: Bidirectional stream for audio chunks and responses
-- **PlayAudio**: Stream TTS audio from hub to puck
+- **PlayAudio**: Stream TTS audio from hub to relay
 - **Audio format**: 16kHz, mono, PCM
 
 ## Testing
@@ -69,9 +69,9 @@ Use the provided test script to verify wake word functionality:
 # Run the test environment
 ./tools/test-wake-word.sh
 
-# In another terminal, run the puck
-cd puck/test-go
-./test-puck --hub localhost:50051
+# In another terminal, run the relay
+cd relay/test-go
+./test-relay --hub localhost:50051
 
 # Test by saying: "Hey Loqa, turn on the lights"
 ```
@@ -93,15 +93,15 @@ cd puck/test-go
 ./tools/build.sh
 
 # Or build manually
-cd puck/test-go
+cd relay/test-go
 go mod tidy
-go build -o test-puck ./cmd
+go build -o test-relay ./cmd
 ```
 
 ### Configuration
 Environment variables:
 - `HUB_ADDRESS`: Hub gRPC address (default: localhost:50051)
-- `PUCK_ID`: Unique puck identifier (default: test-puck)
+- `RELAY_ID`: Unique relay identifier (default: test-relay)
 - `WAKE_WORD_THRESHOLD`: Detection confidence (default: 0.7)
 - `AUDIO_SAMPLE_RATE`: Audio capture rate (default: 16000)
 

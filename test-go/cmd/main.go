@@ -27,30 +27,30 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/loqalabs/loqa-puck/test-go/internal/audio"
-	"github.com/loqalabs/loqa-puck/test-go/internal/grpc"
 	pb "github.com/loqalabs/loqa-proto/go/audio"
+	"github.com/loqalabs/loqa-relay/test-go/internal/audio"
+	"github.com/loqalabs/loqa-relay/test-go/internal/grpc"
 )
 
 func main() {
 	// Command line flags
 	hubAddr := flag.String("hub", "localhost:50051", "Hub gRPC address")
-	puckID := flag.String("id", "test-puck-001", "Puck identifier")
+	relayID := flag.String("id", "test-relay-001", "Relay identifier")
 	flag.Parse()
 
-	log.Printf("🚀 Starting Loqa Test Puck Service")
-	log.Printf("📋 Puck ID: %s", *puckID)
+	log.Printf("🚀 Starting Loqa Test Relay Service")
+	log.Printf("📋 Relay ID: %s", *relayID)
 	log.Printf("🎯 Hub Address: %s", *hubAddr)
 
 	// Initialize audio system
-	puckAudio, err := audio.NewPuckAudio()
+	relayAudio, err := audio.NewRelayAudio()
 	if err != nil {
 		log.Fatalf("❌ Failed to initialize audio: %v", err)
 	}
-	defer puckAudio.Shutdown()
+	defer relayAudio.Shutdown()
 
 	// Initialize gRPC client
-	client := grpc.NewPuckClient(*hubAddr, *puckID)
+	client := grpc.NewRelayClient(*hubAddr, *relayID)
 
 	// Connect to hub with retry
 	for i := 0; i < 5; i++ {
@@ -73,7 +73,7 @@ func main() {
 	}
 
 	// Start audio recording
-	if err := puckAudio.StartRecording(audioChan); err != nil {
+	if err := relayAudio.StartRecording(audioChan); err != nil {
 		log.Fatalf("❌ Failed to start recording: %v", err)
 	}
 
@@ -93,7 +93,7 @@ func main() {
 
 	// Display status
 	fmt.Println()
-	fmt.Println("🎤 Loqa Test Puck - Audio Interface Active!")
+	fmt.Println("🎤 Loqa Test Relay - Audio Interface Active!")
 	fmt.Println("==========================================")
 	fmt.Println()
 	fmt.Println("🎙️  Microphone: Listening for wake word")
@@ -110,14 +110,14 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	<-sigChan
-	log.Println("\n🛑 Shutting down puck service...")
-	
+	log.Println("\n🛑 Shutting down relay service...")
+
 	// Stop recording
-	puckAudio.StopRecording()
-	
+	relayAudio.StopRecording()
+
 	// Close channels
 	close(audioChan)
 	close(responseChan)
 
-	log.Println("👋 Puck service stopped")
+	log.Println("👋 Relay service stopped")
 }

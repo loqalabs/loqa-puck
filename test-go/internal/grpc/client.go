@@ -28,37 +28,37 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	pb "github.com/loqalabs/loqa-proto/go/audio"
-	"github.com/loqalabs/loqa-puck/test-go/internal/audio"
+	"github.com/loqalabs/loqa-relay/test-go/internal/audio"
 )
 
-// PuckClient handles gRPC communication with the hub
-type PuckClient struct {
-	conn          *grpc.ClientConn
-	audioClient   pb.AudioServiceClient
-	hubAddress    string
-	puckID        string
-	isConnected   bool
-	ctx           context.Context
-	cancel        context.CancelFunc
+// RelayClient handles gRPC communication with the hub
+type RelayClient struct {
+	conn        *grpc.ClientConn
+	audioClient pb.AudioServiceClient
+	hubAddress  string
+	relayID     string
+	isConnected bool
+	ctx         context.Context
+	cancel      context.CancelFunc
 }
 
-// NewPuckClient creates a new gRPC client for the puck
-func NewPuckClient(hubAddress, puckID string) *PuckClient {
+// NewRelayClient creates a new gRPC client for the relay
+func NewRelayClient(hubAddress, relayID string) *RelayClient {
 	ctx, cancel := context.WithCancel(context.Background())
-	
-	return &PuckClient{
+
+	return &RelayClient{
 		hubAddress: hubAddress,
-		puckID:     puckID,
+		relayID:    relayID,
 		ctx:        ctx,
 		cancel:     cancel,
 	}
 }
 
 // Connect establishes connection to the hub
-func (pc *PuckClient) Connect() error {
-	log.Printf("🔗 Puck: Connecting to hub at %s", pc.hubAddress)
+func (pc *RelayClient) Connect() error {
+	log.Printf("🔗 Relay: Connecting to hub at %s", pc.hubAddress)
 
-	conn, err := grpc.NewClient(pc.hubAddress, 
+	conn, err := grpc.NewClient(pc.hubAddress,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
@@ -69,12 +69,12 @@ func (pc *PuckClient) Connect() error {
 	pc.audioClient = pb.NewAudioServiceClient(conn)
 	pc.isConnected = true
 
-	log.Printf("✅ Puck: Connected to hub successfully")
+	log.Printf("✅ Relay: Connected to hub successfully")
 	return nil
 }
 
 // StreamAudio sends audio chunks to the hub and receives responses
-func (pc *PuckClient) StreamAudio(audioChan <-chan audio.AudioChunk, responseChan chan<- *pb.AudioResponse) error {
+func (pc *RelayClient) StreamAudio(audioChan <-chan audio.AudioChunk, responseChan chan<- *pb.AudioResponse) error {
 	if !pc.isConnected {
 		return fmt.Errorf("not connected to hub")
 	}
@@ -85,7 +85,7 @@ func (pc *PuckClient) StreamAudio(audioChan <-chan audio.AudioChunk, responseCha
 		return fmt.Errorf("failed to create audio stream: %w", err)
 	}
 
-	log.Println("🎙️  Puck: Audio streaming started")
+	log.Println("🎙️  Relay: Audio streaming started")
 
 	// Goroutine to send audio chunks
 	go func() {
@@ -95,13 +95,13 @@ func (pc *PuckClient) StreamAudio(audioChan <-chan audio.AudioChunk, responseCha
 			select {
 			case audioChunk, ok := <-audioChan:
 				if !ok {
-					log.Println("🎙️  Puck: Audio channel closed")
+					log.Println("🎙️  Relay: Audio channel closed")
 					return
 				}
 
 				// Convert audio chunk to protobuf message
 				chunk := &pb.AudioChunk{
-					PuckId:        pc.puckID,
+					RelayId:       pc.relayID,
 					AudioData:     float32ArrayToBytes(audioChunk.Data),
 					SampleRate:    audioChunk.SampleRate,
 					Timestamp:     audioChunk.Timestamp,
@@ -114,7 +114,7 @@ func (pc *PuckClient) StreamAudio(audioChan <-chan audio.AudioChunk, responseCha
 					return
 				}
 
-				log.Printf("📤 Puck: Sent audio chunk (%d samples)", len(audioChunk.Data))
+				log.Printf("📤 Relay: Sent audio chunk (%d samples)", len(audioChunk.Data))
 
 			case <-pc.ctx.Done():
 				return
@@ -127,7 +127,7 @@ func (pc *PuckClient) StreamAudio(audioChan <-chan audio.AudioChunk, responseCha
 		for {
 			response, err := stream.Recv()
 			if err == io.EOF {
-				log.Println("🎙️  Puck: Audio stream ended")
+				log.Println("🎙️  Relay: Audio stream ended")
 				return
 			}
 			if err != nil {
@@ -135,7 +135,7 @@ func (pc *PuckClient) StreamAudio(audioChan <-chan audio.AudioChunk, responseCha
 				return
 			}
 
-			log.Printf("📥 Puck: Received response - Command: %s, Response: %s", 
+			log.Printf("📥 Relay: Received response - Command: %s, Response: %s",
 				response.Command, response.ResponseText)
 
 			select {
@@ -151,24 +151,24 @@ func (pc *PuckClient) StreamAudio(audioChan <-chan audio.AudioChunk, responseCha
 }
 
 // PlayAudio receives TTS audio from hub and plays it
-func (pc *PuckClient) PlayAudio(audioPlayer func([]float32) error) error {
+func (pc *RelayClient) PlayAudio(audioPlayer func([]float32) error) error {
 	if !pc.isConnected {
 		return fmt.Errorf("not connected to hub")
 	}
 
 	// This would be called when the hub wants to send TTS audio
 	// For now, this is a placeholder for the TTS playback functionality
-	log.Println("🔊 Puck: Ready to receive TTS audio from hub")
-	
+	log.Println("🔊 Relay: Ready to receive TTS audio from hub")
+
 	return nil
 }
 
 // Disconnect closes the connection to the hub
-func (pc *PuckClient) Disconnect() {
+func (pc *RelayClient) Disconnect() {
 	if pc.conn != nil {
 		pc.conn.Close()
 		pc.isConnected = false
-		log.Println("🔗 Puck: Disconnected from hub")
+		log.Println("🔗 Relay: Disconnected from hub")
 	}
 	pc.cancel()
 }
@@ -185,4 +185,3 @@ func float32ArrayToBytes(data []float32) []byte {
 	}
 	return bytes
 }
-
