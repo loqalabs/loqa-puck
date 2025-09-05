@@ -110,3 +110,4 @@ Environment variables:
 - Audio output (for TTS responses)
 - Network connectivity to hub 
  
+ 
