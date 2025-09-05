@@ -51,6 +51,7 @@ jobs:
       language: 'go'
       go-version: '1.23.0'
       working-directory: 'test-go'
+      proto-repo: 'loqalabs/loqa-proto'
 
   docker:
     name: Docker Build and Security
