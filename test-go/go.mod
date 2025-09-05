@@ -2,11 +2,9 @@ module github.com/loqalabs/loqa-puck/test-go
 
 go 1.23.0
 
-replace github.com/loqalabs/loqa-proto/go => ../../loqa-proto/go
-
 require (
 	github.com/gordonklaus/portaudio v0.0.0-20250206071425-98a94950218b
-	github.com/loqalabs/loqa-proto/go v0.0.0-00010101000000-000000000000
+	github.com/loqalabs/loqa-proto/go v0.0.16
 	google.golang.org/grpc v1.65.0
 )
 
