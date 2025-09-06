@@ -23,12 +23,6 @@ jobs:
       with:
         path: loqa-relay
 
-    - name: Checkout loqa-proto
-      uses: actions/checkout@v4
-      with:
-        repository: loqalabs/loqa-proto
-        path: loqa-proto
-
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -82,12 +76,6 @@ jobs:
       uses: actions/checkout@v4
       with:
         path: loqa-relay
-
-    - name: Checkout loqa-proto
-      uses: actions/checkout@v4
-      with:
-        repository: loqalabs/loqa-proto
-        path: loqa-proto
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -156,12 +144,6 @@ jobs:
       with:
         path: loqa-relay
 
-    - name: Checkout loqa-proto
-      uses: actions/checkout@v4
-      with:
-        repository: loqalabs/loqa-proto
-        path: loqa-proto
-
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -207,8 +189,37 @@ jobs:
       actions: read
     
     steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v4
+
+    # Setup Go BEFORE CodeQL initialization
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23.0'
+        cache-dependency-path: test-go/go.sum
+
+    - name: Install PortAudio dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y portaudio19-dev
+
+    # Initialize CodeQL AFTER Go is set up
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: go
+
+    # Build the project for CodeQL analysis
+    - name: Build project for CodeQL
+      run: |
+        cd test-go
+        go build -v ./...
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:go"
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master

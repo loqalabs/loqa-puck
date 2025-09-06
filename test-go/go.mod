@@ -2,8 +2,6 @@ module github.com/loqalabs/loqa-relay/test-go
 
 go 1.23.0
 
-replace github.com/loqalabs/loqa-proto/go => ../../loqa-proto/go
-
 replace (
 	golang.org/x/net => golang.org/x/net v0.19.0
 	golang.org/x/sys => golang.org/x/sys v0.15.0
@@ -15,7 +13,7 @@ require (
 )
 
 require (
-	github.com/loqalabs/loqa-proto/go v0.0.0-00010101000000-000000000000
+	github.com/loqalabs/loqa-proto/go v0.0.17
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
