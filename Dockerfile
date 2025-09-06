@@ -9,8 +9,6 @@ RUN apk add --no-cache \
     pkgconfig
 
 WORKDIR /build
-# Copy loqa-proto dependency to match the replace path ../../loqa-proto/go
-COPY loqa-proto/ loqa-proto/
 
 # Set up the test-go directory structure
 WORKDIR /build/loqa-relay/test-go
