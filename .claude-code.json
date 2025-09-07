@@ -34,7 +34,16 @@
     "scope_boundaries": "Ask for clarification when scope is unclear",
     "technical_approach": "Propose options when multiple paths exist", 
     "dependencies": "Stop and ask when blockers are found",
-    "testing": "Include appropriate test coverage for changes"
+    "testing": {
+      "coverage_requirements": "Maintain high test coverage for all code changes",
+      "unit_tests": "Write unit tests for all new functions, methods, and business logic",
+      "integration_tests": "Add integration tests for hub communication and device interactions", 
+      "edge_cases": "Test error conditions, boundary values, and failure scenarios",
+      "regression_tests": "Add tests that prevent reoccurrence of fixed bugs",
+      "test_before_commit": "Run existing tests before committing to ensure no breakage",
+      "client_testing": "Test client-side audio processing and relay functionality",
+      "connection_testing": "Test network connectivity, reconnection, and failure recovery"
+    }
   },
   "repository_context": {
     "service_role": "Client relay service - connects user devices to the Loqa hub",
