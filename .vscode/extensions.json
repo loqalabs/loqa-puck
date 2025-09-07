@@ -1,0 +1,19 @@
+{
+    "recommendations": [
+        // Go development
+        "golang.go",
+        
+        // YAML for relay configuration
+        "redhat.vscode-yaml",
+        
+        // Git integration
+        "eamodio.gitlens",
+        
+        // Docker for containerization
+        "ms-azuretools.vscode-docker",
+        
+        // General productivity
+        "ms-vscode.vscode-json",
+        "christian-kohler.path-intellisense"
+    ]
+}
