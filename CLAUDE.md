@@ -16,7 +16,7 @@ Loqa Relay is the client-side service that handles:
 
 - **Service Type**: Client-side service (Go)
 - **Dependencies**: loqa-proto (gRPC client definitions)
-- **Communicates With**: loqa-hub (primary), loqa-device-service (coordination)
+- **Communicates With**: loqa-hub (primary)
 - **Deployment**: Runs on edge devices, development machines, embedded hardware
 - **Network**: Connects to hub via gRPC (typically `:50051`)
 
@@ -345,4 +345,4 @@ go run ./cmd --log-connections
 - **Master Documentation**: `../loqa/config/CLAUDE.md` - Full ecosystem overview
 - **Hub Service**: `../loqa-hub/CLAUDE.md` - Server-side audio processing
 - **Protocol Definitions**: `../loqa-proto/CLAUDE.md` - gRPC audio streaming contracts
-- **Device Integration**: `../loqa-device-service/CLAUDE.md` - Hardware device coordination
+- **Skills System**: `../loqa-skills/CLAUDE.md` - Voice-driven skill integrations
