@@ -37,11 +37,20 @@
     "testing": "Include appropriate test coverage for changes"
   },
   "repository_context": {
-    "structure": "loqalabs/ contains multiple individual git repositories",
-    "cross_repo_workflow": {
-      "simple_changes": "Make directly to main branch of supporting repos",
-      "complex_changes": "Create matching feature branches across affected repos",
-      "merge_order": "Supporting repos first, primary repo last"
+    "service_role": "Client relay service - connects user devices to the Loqa hub",
+    "service_type": "Client-side service (Go)",
+    "dependencies": ["loqa-proto"],
+    "communicates_with": ["loqa-hub", "loqa-device-service"],
+    "microservice_architecture": {
+      "structure": "Part of loqalabs/ microservice ecosystem - each subfolder is an independent git repository",
+      "peer_services_location": "../ (one folder up from current repo)",
+      "check_before_cloning": "Always check if ../SERVICE_NAME exists before attempting to clone repositories",
+      "relay_role": "Handles client-side audio processing and communication with central hub",
+      "cross_service_changes": {
+        "simple_changes": "Make directly to main branch of supporting repos (proto, configs)",
+        "complex_changes": "Create matching feature branches across affected repos",
+        "merge_order": "Supporting repos first (proto), core services (hub), client services last"
+      }
     }
   },
   "best_practices": [
