@@ -108,4 +108,4 @@ Environment variables:
 ### Hardware Requirements
 - Microphone input
 - Audio output (for TTS responses)
-- Network connectivity to hub
+- Network connectivity to hub 
