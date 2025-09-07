@@ -28,8 +28,9 @@ test-go/test-relay
 # Dependency directories
 vendor/
 
-# IDE files (VSCode configs are shared)
+# IDE files
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
