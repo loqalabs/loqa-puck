@@ -5,7 +5,6 @@ bin/
 build/
 dist/
 .pio/
-.vscode/extensions.json
 
 # Go
 *.exe
@@ -29,8 +28,7 @@ test-go/test-relay
 # Dependency directories
 vendor/
 
-# IDE files
-.vscode/
+# IDE files (VSCode configs are shared)
 .idea/
 *.swp
 *.swo
