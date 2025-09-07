@@ -54,7 +54,7 @@
     "service_role": "Client relay service - connects user devices to the Loqa hub",
     "service_type": "Client-side service (Go)",
     "dependencies": ["loqa-proto"],
-    "communicates_with": ["loqa-hub", "loqa-device-service"],
+    "communicates_with": ["loqa-hub"],
     "microservice_architecture": {
       "structure": "Part of loqalabs/ microservice ecosystem - each subfolder is an independent git repository",
       "peer_services_location": "../ (one folder up from current repo)",
