@@ -9,14 +9,14 @@ replace (
 
 require (
 	github.com/gordonklaus/portaudio v0.0.0-20250206071425-98a94950218b
-	google.golang.org/grpc v1.65.0
+	google.golang.org/grpc v1.75.0
 )
 
 require (
-	github.com/loqalabs/loqa-proto/go v0.0.17
+	github.com/loqalabs/loqa-proto/go v0.0.18
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
-	google.golang.org/protobuf v1.36.7 // indirect
+	google.golang.org/protobuf v1.36.8 // indirect
 )
