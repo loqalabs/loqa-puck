@@ -49,6 +49,32 @@ Loqa Relay is the client-side service that handles:
 - **Deployment**: Runs on edge devices, development machines, embedded hardware
 - **Network**: Connects to hub via gRPC (typically `:50051`)
 
+## 🚀 Proto Development Workflow
+
+### **Testing Protocol Changes**
+
+When working with protocol changes, use development mode to test changes before proto releases:
+
+```bash
+# Enable development mode (use local proto changes)
+./scripts/proto-dev-mode.sh dev
+
+# Test with local proto changes
+cd test-go && go build -o ../bin/relay ./cmd
+cd test-go && go test ./...
+
+# Disable development mode (use released proto version)  
+./scripts/proto-dev-mode.sh prod
+
+# Check current mode
+./scripts/proto-dev-mode.sh status
+```
+
+### **Benefits**
+- ✅ Test proto changes without GitHub releases
+- ✅ End-to-end validation with hub service
+- ✅ Safe rollback between dev/prod modes
+
 ## Development Commands
 
 ### Local Development
