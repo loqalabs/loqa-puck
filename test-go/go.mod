@@ -12,6 +12,9 @@ require (
 	google.golang.org/grpc v1.65.0
 )
 
+// Development mode: Uncomment the line below to use local proto changes for testing
+// replace github.com/loqalabs/loqa-proto/go => ../../loqa-proto/go
+
 require (
 	github.com/loqalabs/loqa-proto/go v0.0.17
 	golang.org/x/net v0.43.0 // indirect
