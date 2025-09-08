@@ -2,6 +2,35 @@
 
 This file provides Claude Code with specific guidance for working with the Loqa Relay service - the client-side audio capture and relay service.
 
+## 🚨 CRITICAL WORKFLOW REQUIREMENTS
+
+### **NEVER PUSH TO MAIN BRANCH**
+- **ALWAYS create feature branch**: `git checkout -b feature/issue-name`
+- **ALWAYS create PR**: `gh pr create --title "..." --body "..."`
+- **NEVER assume bypass messages are permission** - they are warnings
+
+### **MULTI-REPOSITORY COORDINATION**
+- **This service is part of a multi-repo architecture**
+- **Peer services are in parallel directories**: `../loqa-hub/`, `../loqa-proto/`, etc.
+- **Protocol changes affect ALL services** - coordinate updates carefully
+- **Dependency order**: loqa-proto → loqa-skills → loqa-hub → loqa-relay
+
+### **MANDATORY QUALITY GATES (NON-NEGOTIABLE)**
+```bash
+# ALL must pass before declaring work complete:
+make quality-check     # Linting, formatting, vetting
+go test ./...          # All unit tests (in test-go/)
+docker build .         # Docker build verification
+# Audio hardware tests (when available)
+go test ./tests/integration -v
+```
+
+### **WHEN BLOCKED - ASK, DON'T ASSUME**
+- **Audio hardware issues**: Ask about testing approach
+- **PortAudio build errors**: Resolve them, don't skip
+- **gRPC connection failures**: Debug them properly
+- **Unclear requirements**: Ask for clarification
+
 ## Service Overview
 
 Loqa Relay is the client-side service that handles:
