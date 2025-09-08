@@ -26,7 +26,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23.0'
+        go-version: '1.25.1'
         cache: true
         cache-dependency-path: loqa-relay/test-go/go.sum
 
@@ -80,7 +80,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23.0'
+        go-version: '1.25.1'
 
     - name: Verify Go version
       run: go version
@@ -196,7 +196,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23.0'
+        go-version: '1.25.1'
         cache-dependency-path: test-go/go.sum
 
     - name: Install PortAudio dependencies

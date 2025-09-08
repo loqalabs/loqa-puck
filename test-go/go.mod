@@ -1,6 +1,6 @@
 module github.com/loqalabs/loqa-relay/test-go
 
-go 1.23.0
+go 1.25.1
 
 replace (
 	golang.org/x/net => golang.org/x/net v0.19.0
