@@ -109,3 +109,4 @@ Environment variables:
 - Microphone input
 - Audio output (for TTS responses)
 - Network connectivity to hub 
+# CI cache refresh
