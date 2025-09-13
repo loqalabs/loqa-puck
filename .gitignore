@@ -84,3 +84,5 @@ Makefile
 
 # Local config overrides
 config.local.yml# Updated Fri Sep  5 21:09:35 CDT 2025
+.claude-code.json
+CLAUDE.md
