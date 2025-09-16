@@ -89,7 +89,11 @@ func (pc *RelayClient) StreamAudio(audioChan <-chan audio.AudioChunk, responseCh
 
 	// Goroutine to send audio chunks
 	go func() {
-		defer stream.CloseSend()
+		defer func() {
+			if err := stream.CloseSend(); err != nil {
+				log.Printf("⚠️ Failed to close gRPC stream: %v", err)
+			}
+		}()
 
 		for {
 			select {
@@ -166,7 +170,9 @@ func (pc *RelayClient) PlayAudio(audioPlayer func([]float32) error) error {
 // Disconnect closes the connection to the hub
 func (pc *RelayClient) Disconnect() {
 	if pc.conn != nil {
-		pc.conn.Close()
+		if err := pc.conn.Close(); err != nil {
+			log.Printf("⚠️ Failed to close gRPC connection: %v", err)
+		}
 		pc.isConnected = false
 		log.Println("🔗 Relay: Disconnected from hub")
 	}
