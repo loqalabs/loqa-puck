@@ -113,8 +113,12 @@ func (pa *RelayAudio) StartRecording(audioChan chan<- AudioChunk) error {
 	// Recording loop
 	go func() {
 		defer func() {
-			pa.inputStream.Stop()
-			pa.inputStream.Close()
+			if err := pa.inputStream.Stop(); err != nil {
+				log.Printf("⚠️ Failed to stop input stream: %v", err)
+			}
+			if err := pa.inputStream.Close(); err != nil {
+				log.Printf("⚠️ Failed to close input stream: %v", err)
+			}
 			pa.isRecording = false
 			log.Println("🎤 Relay: Stopped audio recording")
 		}()
@@ -186,10 +190,17 @@ func (pa *RelayAudio) StartRecording(audioChan chan<- AudioChunk) error {
 						time.Since(recordingStart).Seconds())
 
 					// Send the complete audio buffer
+					channels := pa.channels
+					if channels < 0 || channels > 255 {
+						log.Printf("⚠️ Invalid channel count: %d, using 1", channels)
+						channels = 1
+					}
+					// #nosec G115 - channels is bounds-checked above
+					channelsInt32 := int32(channels)
 					chunk := AudioChunk{
 						Data:          audioBuffer,
 						SampleRate:    int32(pa.sampleRate),
-						Channels:      int32(pa.channels),
+						Channels:      channelsInt32,
 						Timestamp:     time.Now().UnixNano(),
 						IsWakeWord:    wakeWordDetected,
 						IsEndOfSpeech: true,
@@ -263,8 +274,12 @@ func (pa *RelayAudio) PlayAudio(audioData []float32) error {
 	// Play audio in chunks
 	go func() {
 		defer func() {
-			pa.outputStream.Stop()
-			pa.outputStream.Close()
+			if err := pa.outputStream.Stop(); err != nil {
+				log.Printf("⚠️ Failed to stop output stream: %v", err)
+			}
+			if err := pa.outputStream.Close(); err != nil {
+				log.Printf("⚠️ Failed to close output stream: %v", err)
+			}
 			pa.isPlaying = false
 			log.Println("🔊 Relay: Finished playing audio")
 		}()
@@ -310,10 +325,16 @@ func (pa *RelayAudio) calculateEnergy(buffer []float32) float64 {
 func (pa *RelayAudio) Shutdown() {
 	pa.StopRecording()
 	if pa.outputStream != nil && pa.isPlaying {
-		pa.outputStream.Stop()
-		pa.outputStream.Close()
+		if err := pa.outputStream.Stop(); err != nil {
+			log.Printf("⚠️ Failed to stop output stream during shutdown: %v", err)
+		}
+		if err := pa.outputStream.Close(); err != nil {
+			log.Printf("⚠️ Failed to close output stream during shutdown: %v", err)
+		}
 	}
-	portaudio.Terminate()
+	if err := portaudio.Terminate(); err != nil {
+		log.Printf("⚠️ Failed to terminate PortAudio: %v", err)
+	}
 	log.Println("🔌 Relay: Audio system shutdown")
 }
 
