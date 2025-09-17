@@ -27,20 +27,47 @@ import (
 	"syscall"
 	"time"
 
-	pb "github.com/loqalabs/loqa-proto/go/audio"
 	"github.com/loqalabs/loqa-relay/test-go/internal/audio"
 	"github.com/loqalabs/loqa-relay/test-go/internal/grpc"
+	"github.com/loqalabs/loqa-relay/test-go/internal/nats"
 )
+
+// bytesToFloat32Array converts audio bytes (WAV format or raw 16-bit PCM) back to float32 samples
+func bytesToFloat32Array(data []byte) []float32 {
+	// Skip WAV header if present (check for "RIFF" signature)
+	pcmData := data
+	if len(data) >= 44 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WAVE" {
+		// WAV file detected, skip 44-byte header
+		pcmData = data[44:]
+	}
+
+	if len(pcmData)%2 != 0 {
+		// Ensure even number of bytes for 16-bit samples
+		pcmData = pcmData[:len(pcmData)-1]
+	}
+
+	samples := make([]float32, len(pcmData)/2)
+	for i := 0; i < len(samples); i++ {
+		// Convert from 16-bit PCM to float32 (little-endian)
+		low := int16(pcmData[i*2])
+		high := int16(pcmData[i*2+1])
+		val := low | (high << 8)
+		samples[i] = float32(val) / 32767.0
+	}
+	return samples
+}
 
 func main() {
 	// Command line flags
 	hubAddr := flag.String("hub", "localhost:50051", "Hub gRPC address")
 	relayID := flag.String("id", "test-relay-001", "Relay identifier")
+	natsURL := flag.String("nats", "nats://localhost:4222", "NATS server URL")
 	flag.Parse()
 
 	log.Printf("🚀 Starting Loqa Test Relay Service")
 	log.Printf("📋 Relay ID: %s", *relayID)
 	log.Printf("🎯 Hub Address: %s", *hubAddr)
+	log.Printf("📨 NATS URL: %s", *natsURL)
 
 	// Initialize audio system
 	relayAudio, err := audio.NewRelayAudio()
@@ -48,6 +75,18 @@ func main() {
 		log.Fatalf("❌ Failed to initialize audio: %v", err)
 	}
 	defer relayAudio.Shutdown()
+
+	// Initialize NATS audio subscriber
+	audioSubscriber, err := nats.NewAudioSubscriber(*natsURL, *relayID, 10)
+	if err != nil {
+		log.Fatalf("❌ Failed to initialize NATS audio subscriber: %v", err)
+	}
+	defer audioSubscriber.Close()
+
+	// Start listening for audio messages
+	if err := audioSubscriber.Start(); err != nil {
+		log.Fatalf("❌ Failed to start NATS audio subscriber: %v", err)
+	}
 
 	// Initialize gRPC client
 	client := grpc.NewRelayClient(*hubAddr, *relayID)
@@ -63,12 +102,11 @@ func main() {
 	}
 	defer client.Disconnect()
 
-	// Create channels for audio streaming
+	// Create channel for audio upload (fire-and-forget)
 	audioChan := make(chan audio.AudioChunk, 10)
-	responseChan := make(chan *pb.AudioResponse, 10)
 
-	// Start audio streaming to hub
-	if err := client.StreamAudio(audioChan, responseChan); err != nil {
+	// Start audio streaming to hub (upload only)
+	if err := client.StreamAudio(audioChan, nil); err != nil {
 		log.Fatalf("❌ Failed to start audio streaming: %v", err)
 	}
 
@@ -77,31 +115,33 @@ func main() {
 		log.Fatalf("❌ Failed to start recording: %v", err)
 	}
 
-	// Handle responses from hub
+	// Handle streaming audio from NATS
+	streamManager := audioSubscriber.GetStreamManager()
 	go func() {
-		for response := range responseChan {
-			log.Printf("🎤 Heard: \"%s\"", response.Transcription)
-			log.Printf("⚡ Command: %s", response.Command)
-			log.Printf("💬 Response: %s", response.ResponseText)
+		for audioChunk := range streamManager.GetPlaybackChannel() {
+			log.Printf("🔊 Playing complete audio file (%d bytes)", len(audioChunk))
 
-			// TODO: Convert response text to audio and play it
-			if response.ResponseText != "" {
-				log.Printf("🔊 Would play TTS: \"%s\"", response.ResponseText)
+			// Convert audio bytes to float32 samples for playback
+			audioData := bytesToFloat32Array(audioChunk)
+			if err := relayAudio.PlayAudio(audioData); err != nil {
+				log.Printf("❌ Failed to play audio chunk: %v", err)
 			}
 		}
 	}()
 
 	// Display status
 	fmt.Println()
-	fmt.Println("🎤 Loqa Test Relay - Audio Interface Active!")
-	fmt.Println("==========================================")
+	fmt.Println("🎤 Loqa Test Relay - Streaming Audio Interface Active!")
+	fmt.Println("======================================================")
 	fmt.Println()
 	fmt.Println("🎙️  Microphone: Listening for wake word")
 	fmt.Println("🎯 Wake Word: \"Hey Loqa\" (enabled)")
-	fmt.Println("🔊 Speakers: Ready for audio playback")
-	fmt.Println("📡 Hub Connection: Streaming audio via gRPC")
+	fmt.Println("🔊 Speakers: Ready for streaming audio playback")
+	fmt.Println("📡 Audio Upload: Fire-and-forget via gRPC")
+	fmt.Println("📨 Audio Download: Streaming chunks via NATS")
 	fmt.Println()
 	fmt.Println("💡 Say \"Hey Loqa\" followed by your command!")
+	fmt.Println("⚡ Audio responses will stream immediately when ready")
 	fmt.Println("⏹️  Press Ctrl+C to stop")
 	fmt.Println()
 
@@ -117,7 +157,6 @@ func main() {
 
 	// Close channels
 	close(audioChan)
-	close(responseChan)
 
 	log.Println("👋 Relay service stopped")
 }
