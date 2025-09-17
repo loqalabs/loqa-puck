@@ -197,12 +197,32 @@ func (pa *RelayAudio) StartRecording(audioChan chan<- AudioChunk) error {
 					}
 					// #nosec G115 - channels is bounds-checked above
 					channelsInt32 := int32(channels)
+					// Send wake word audio first if wake word was detected
+					if wakeWordDetected && wakeWordBuffer != nil {
+						wakeWordChunk := AudioChunk{
+							Data:          wakeWordBuffer,
+							SampleRate:    int32(pa.sampleRate),
+							Channels:      channelsInt32,
+							Timestamp:     time.Now().UnixNano(),
+							IsWakeWord:    true,
+							IsEndOfSpeech: false,
+						}
+
+						select {
+						case audioChan <- wakeWordChunk:
+							// Successfully sent wake word
+						default:
+							log.Println("⚠️  Audio channel full, dropping wake word chunk")
+						}
+					}
+
+					// Send speech audio chunk
 					chunk := AudioChunk{
 						Data:          audioBuffer,
 						SampleRate:    int32(pa.sampleRate),
 						Channels:      channelsInt32,
 						Timestamp:     time.Now().UnixNano(),
-						IsWakeWord:    wakeWordDetected,
+						IsWakeWord:    false,  // This is speech, not wake word
 						IsEndOfSpeech: true,
 					}
 
