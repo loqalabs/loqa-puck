@@ -237,11 +237,11 @@ func TestAudioSubscriber_HandleAudioMessage(t *testing.T) {
 	subscriber := NewAudioSubscriberWithConnection(mockConn, relayID, 10)
 
 	tests := []struct {
-		name           string
-		message        AudioStreamMessage
-		expectQueued   bool
-		expectError    bool
-		invalidJSON    bool
+		name         string
+		message      AudioStreamMessage
+		expectQueued bool
+		expectError  bool
+		invalidJSON  bool
 	}{
 		{
 			name: "valid_wav_message",
