@@ -131,34 +131,34 @@ func TestWakeWordDetection(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		audioBuffer     []float32
+		name               string
+		audioBuffer        []float32
 		expectedConfidence float64
-		expectDetection bool
+		expectDetection    bool
 	}{
 		{
-			name:            "empty buffer",
-			audioBuffer:     []float32{},
+			name:               "empty buffer",
+			audioBuffer:        []float32{},
 			expectedConfidence: 0.0,
-			expectDetection: false,
+			expectDetection:    false,
 		},
 		{
-			name:            "too short buffer",
-			audioBuffer:     make([]float32, 50), // Less than len(pattern) * 100
+			name:               "too short buffer",
+			audioBuffer:        make([]float32, 50), // Less than len(pattern) * 100
 			expectedConfidence: 0.0,
-			expectDetection: false,
+			expectDetection:    false,
 		},
 		{
-			name:            "no pattern match",
-			audioBuffer:     make([]float32, 1000), // All zeros
+			name:               "no pattern match",
+			audioBuffer:        make([]float32, 1000), // All zeros
 			expectedConfidence: 0.0,
-			expectDetection: false,
+			expectDetection:    false,
 		},
 		{
-			name:            "perfect pattern match",
-			audioBuffer:     createPatternMatchingBuffer([]float64{0.1, 0.3, 0.8, 0.6, 0.2}, 200),
+			name:               "perfect pattern match",
+			audioBuffer:        createPatternMatchingBuffer([]float64{0.1, 0.3, 0.8, 0.6, 0.2}, 200),
 			expectedConfidence: 0.8, // Should be high confidence
-			expectDetection: true,
+			expectDetection:    true,
 		},
 	}
 
@@ -209,11 +209,11 @@ func TestWakeWordConfiguration(t *testing.T) {
 		input    float64
 		expected float64
 	}{
-		{0.5, 0.5},   // Normal value
-		{-0.1, 0.0},  // Below min, should clamp to 0
-		{1.5, 1.0},   // Above max, should clamp to 1
-		{0.0, 0.0},   // Minimum valid value
-		{1.0, 1.0},   // Maximum valid value
+		{0.5, 0.5},  // Normal value
+		{-0.1, 0.0}, // Below min, should clamp to 0
+		{1.5, 1.0},  // Above max, should clamp to 1
+		{0.0, 0.0},  // Minimum valid value
+		{1.0, 1.0},  // Maximum valid value
 	}
 
 	for _, tt := range testThresholds {
@@ -274,13 +274,20 @@ func TestPlayAudio_ErrorConditions(t *testing.T) {
 	defer audio.Shutdown()
 
 	// Test playing audio while already playing
-	audioData := []float32{0.1, 0.2, 0.3, 0.4}
+	// Create longer audio data to ensure playback takes some time
+	audioData := make([]float32, 8000) // About 0.5 seconds at 16kHz
+	for i := range audioData {
+		audioData[i] = float32(i) / float32(len(audioData)) * 0.1 // Gentle ramp
+	}
 
 	// Start first playback (this may fail if no audio device)
 	err1 := audio.PlayAudio(audioData)
 	if err1 != nil {
 		t.Skipf("PlayAudio failed (may be expected in test environment): %v", err1)
 	}
+
+	// Give first playback a moment to start
+	time.Sleep(10 * time.Millisecond)
 
 	// Try to start second playback while first is running
 	err2 := audio.PlayAudio(audioData)
@@ -289,7 +296,7 @@ func TestPlayAudio_ErrorConditions(t *testing.T) {
 	}
 
 	// Wait for first playback to complete
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(600 * time.Millisecond)
 }
 
 // Helper functions
@@ -297,14 +304,14 @@ func TestPlayAudio_ErrorConditions(t *testing.T) {
 // isCIEnvironment detects if we're running in a CI environment
 func isCIEnvironment() bool {
 	ciEnvVars := []string{
-		"CI",              // Generic CI indicator
+		"CI", // Generic CI indicator
 		"CONTINUOUS_INTEGRATION",
-		"GITHUB_ACTIONS",  // GitHub Actions
-		"GITLAB_CI",       // GitLab CI
-		"JENKINS_URL",     // Jenkins
-		"TRAVIS",          // Travis CI
-		"CIRCLECI",        // CircleCI
-		"BUILDKITE",       // Buildkite
+		"GITHUB_ACTIONS",   // GitHub Actions
+		"GITLAB_CI",        // GitLab CI
+		"JENKINS_URL",      // Jenkins
+		"TRAVIS",           // Travis CI
+		"CIRCLECI",         // CircleCI
+		"BUILDKITE",        // Buildkite
 		"TEAMCITY_VERSION", // TeamCity
 	}
 

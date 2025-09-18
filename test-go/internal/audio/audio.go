@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/gordonklaus/portaudio"
@@ -36,6 +37,7 @@ type RelayAudio struct {
 	outputStream    *portaudio.Stream
 	isRecording     bool
 	isPlaying       bool
+	playbackMutex   sync.RWMutex
 
 	// Audio queue for sequential playback
 	audioQueue   chan []float32
@@ -67,7 +69,7 @@ func NewRelayAudio() (*RelayAudio, error) {
 		wakeWordEnabled:   true,
 		wakeWordThreshold: 0.7,
 		wakeWordPattern:   generateWakeWordPattern(), // Simple "hey loqa" pattern
-		audioQueue:        make(chan []float32, 100),  // Buffer up to 100 audio chunks
+		audioQueue:        make(chan []float32, 100), // Buffer up to 100 audio chunks
 		stopPlayback:      make(chan bool, 1),
 	}
 
@@ -233,7 +235,7 @@ func (pa *RelayAudio) StartRecording(audioChan chan<- AudioChunk) error {
 						SampleRate:    int32(pa.sampleRate),
 						Channels:      channelsInt32,
 						Timestamp:     time.Now().UnixNano(),
-						IsWakeWord:    false,  // This is speech, not wake word
+						IsWakeWord:    false, // This is speech, not wake word
 						IsEndOfSpeech: true,
 					}
 
@@ -289,6 +291,18 @@ func (pa *RelayAudio) audioPlaybackWorker() {
 
 // playAudioChunk plays a complete audio file through speakers
 func (pa *RelayAudio) playAudioChunk(audioData []float32) error {
+	// Set playing flag
+	pa.playbackMutex.Lock()
+	pa.isPlaying = true
+	pa.playbackMutex.Unlock()
+
+	// Ensure flag is cleared when done
+	defer func() {
+		pa.playbackMutex.Lock()
+		pa.isPlaying = false
+		pa.playbackMutex.Unlock()
+	}()
+
 	log.Printf("🔊 Relay: Playing %d samples of audio\n", len(audioData))
 
 	// Create a properly sized buffer for PortAudio
@@ -305,12 +319,20 @@ func (pa *RelayAudio) playAudioChunk(audioData []float32) error {
 	if err != nil {
 		return fmt.Errorf("failed to open output stream: %w", err)
 	}
-	defer outputStream.Close()
+	defer func() {
+		if err := outputStream.Close(); err != nil {
+			log.Printf("⚠️ Failed to close output stream: %v", err)
+		}
+	}()
 
 	if err := outputStream.Start(); err != nil {
 		return fmt.Errorf("failed to start output stream: %w", err)
 	}
-	defer outputStream.Stop()
+	defer func() {
+		if err := outputStream.Stop(); err != nil {
+			log.Printf("⚠️ Failed to stop output stream: %v", err)
+		}
+	}()
 
 	// Play audio in properly sized chunks
 	samplesPlayed := 0
@@ -338,6 +360,14 @@ func (pa *RelayAudio) playAudioChunk(audioData []float32) error {
 
 // PlayAudio queues audio data for sequential playback
 func (pa *RelayAudio) PlayAudio(audioData []float32) error {
+	pa.playbackMutex.RLock()
+	currentlyPlaying := pa.isPlaying
+	pa.playbackMutex.RUnlock()
+
+	if currentlyPlaying {
+		return fmt.Errorf("audio is already playing")
+	}
+
 	select {
 	case pa.audioQueue <- audioData:
 		return nil
@@ -483,4 +513,3 @@ func (pa *RelayAudio) SetWakeWordThreshold(threshold float64) {
 	pa.wakeWordThreshold = math.Max(0.0, math.Min(1.0, threshold))
 	log.Printf("🎯 Relay: Wake word threshold set to %.2f", pa.wakeWordThreshold)
 }
-
