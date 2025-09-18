@@ -151,8 +151,8 @@ func (as *AudioSubscriber) handleAudioMessage(msg *nats.Msg) {
 		return
 	}
 
-	log.Printf("📥 Received complete audio file: stream=%s, size=%d bytes, type=%s",
-		streamMsg.StreamID, len(streamMsg.AudioData), streamMsg.MessageType)
+	log.Printf("📥 Received complete audio file: stream=%s, size=%d bytes, type=%s, format=%s",
+		streamMsg.StreamID, len(streamMsg.AudioData), streamMsg.MessageType, streamMsg.AudioFormat)
 
 	// Send complete audio file directly to playback channel
 	select {
