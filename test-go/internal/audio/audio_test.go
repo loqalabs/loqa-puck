@@ -19,6 +19,7 @@
 package audio
 
 import (
+	"os"
 	"testing"
 	"time"
 )
@@ -28,6 +29,11 @@ func TestRelayAudio_Creation(t *testing.T) {
 	// In CI environments, you might want to skip this test
 	if testing.Short() {
 		t.Skip("Skipping PortAudio tests in short mode")
+	}
+
+	// Skip in CI environments where audio hardware is not available
+	if isCIEnvironment() {
+		t.Skip("Skipping audio hardware tests in CI environment")
 	}
 
 	audio, err := NewRelayAudio()
@@ -256,9 +262,14 @@ func TestPlayAudio_ErrorConditions(t *testing.T) {
 		t.Skip("Skipping PortAudio tests in short mode")
 	}
 
+	// Skip in CI environments where audio hardware is not available
+	if isCIEnvironment() {
+		t.Skip("Skipping audio hardware tests in CI environment")
+	}
+
 	audio, err := NewRelayAudio()
 	if err != nil {
-		t.Skipf("Failed to create RelayAudio: %v", err)
+		t.Skipf("Failed to create RelayAudio (PortAudio may not be available): %v", err)
 	}
 	defer audio.Shutdown()
 
@@ -268,8 +279,7 @@ func TestPlayAudio_ErrorConditions(t *testing.T) {
 	// Start first playback (this may fail if no audio device)
 	err1 := audio.PlayAudio(audioData)
 	if err1 != nil {
-		t.Logf("First PlayAudio failed (may be expected in test environment): %v", err1)
-		return // Skip rest of test if audio device unavailable
+		t.Skipf("PlayAudio failed (may be expected in test environment): %v", err1)
 	}
 
 	// Try to start second playback while first is running
@@ -283,6 +293,29 @@ func TestPlayAudio_ErrorConditions(t *testing.T) {
 }
 
 // Helper functions
+
+// isCIEnvironment detects if we're running in a CI environment
+func isCIEnvironment() bool {
+	ciEnvVars := []string{
+		"CI",              // Generic CI indicator
+		"CONTINUOUS_INTEGRATION",
+		"GITHUB_ACTIONS",  // GitHub Actions
+		"GITLAB_CI",       // GitLab CI
+		"JENKINS_URL",     // Jenkins
+		"TRAVIS",          // Travis CI
+		"CIRCLECI",        // CircleCI
+		"BUILDKITE",       // Buildkite
+		"TEAMCITY_VERSION", // TeamCity
+	}
+
+	for _, envVar := range ciEnvVars {
+		if os.Getenv(envVar) != "" {
+			return true
+		}
+	}
+
+	return false
+}
 
 func abs64(x float64) float64 {
 	if x < 0 {
