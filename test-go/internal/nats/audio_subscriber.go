@@ -37,6 +37,29 @@ type AudioStreamMessage struct {
 	Priority     int    `json:"priority"`       // 1=highest, 5=lowest
 }
 
+// RelayNATSConnection interface for dependency injection
+type RelayNATSConnection interface {
+	Subscribe(subject string, cb nats.MsgHandler) (*nats.Subscription, error)
+	Close()
+}
+
+// RelayNATSConnectionAdapter adapts *nats.Conn to RelayNATSConnection interface
+type RelayNATSConnectionAdapter struct {
+	conn *nats.Conn
+}
+
+func NewRelayNATSConnectionAdapter(conn *nats.Conn) *RelayNATSConnectionAdapter {
+	return &RelayNATSConnectionAdapter{conn: conn}
+}
+
+func (r *RelayNATSConnectionAdapter) Subscribe(subject string, cb nats.MsgHandler) (*nats.Subscription, error) {
+	return r.conn.Subscribe(subject, cb)
+}
+
+func (r *RelayNATSConnectionAdapter) Close() {
+	r.conn.Close()
+}
+
 // AudioStreamManager manages audio playback queue (simplified for complete file delivery)
 type AudioStreamManager struct {
 	playbackCh chan []byte // Channel for immediate audio playback
@@ -58,7 +81,7 @@ func (asm *AudioStreamManager) GetPlaybackChannel() <-chan []byte {
 
 // AudioSubscriber handles NATS subscriptions for audio streams
 type AudioSubscriber struct {
-	natsConn      *nats.Conn
+	natsConn      RelayNATSConnection
 	relayID       string
 	streamManager *AudioStreamManager
 }
@@ -85,10 +108,19 @@ func NewAudioSubscriber(natsURL, relayID string, streamCapacity int) (*AudioSubs
 	log.Printf("✅ Connected to NATS at %s", natsURL)
 
 	return &AudioSubscriber{
-		natsConn:      nc,
+		natsConn:      NewRelayNATSConnectionAdapter(nc),
 		relayID:       relayID,
 		streamManager: NewAudioStreamManager(streamCapacity),
 	}, nil
+}
+
+// NewAudioSubscriberWithConnection creates a new NATS audio subscriber with an existing connection (for testing)
+func NewAudioSubscriberWithConnection(natsConn RelayNATSConnection, relayID string, streamCapacity int) *AudioSubscriber {
+	return &AudioSubscriber{
+		natsConn:      natsConn,
+		relayID:       relayID,
+		streamManager: NewAudioStreamManager(streamCapacity),
+	}
 }
 
 // Start begins listening for audio messages

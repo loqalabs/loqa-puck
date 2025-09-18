@@ -40,8 +40,8 @@ func TestRelayAudio_Creation(t *testing.T) {
 	}
 
 	// Verify default configuration
-	if audio.sampleRate != 16000.0 {
-		t.Errorf("Expected sample rate 16000, got %f", audio.sampleRate)
+	if audio.sampleRate != 22050.0 {
+		t.Errorf("Expected sample rate 22050, got %f", audio.sampleRate)
 	}
 
 	if audio.channels != 1 {
