@@ -37,6 +37,10 @@ type RelayAudio struct {
 	isRecording     bool
 	isPlaying       bool
 
+	// Audio queue for sequential playback
+	audioQueue   chan []float32
+	stopPlayback chan bool
+
 	// VAD settings
 	energyThreshold float64
 	preBufferSize   int
@@ -54,8 +58,8 @@ func NewRelayAudio() (*RelayAudio, error) {
 		return nil, fmt.Errorf("failed to initialize PortAudio: %w", err)
 	}
 
-	return &RelayAudio{
-		sampleRate:        16000.0, // 16kHz for speech
+	ra := &RelayAudio{
+		sampleRate:        22050.0, // 22.05kHz to match TTS output
 		framesPerBuffer:   1024,
 		channels:          1, // Mono
 		energyThreshold:   0.01,
@@ -63,7 +67,14 @@ func NewRelayAudio() (*RelayAudio, error) {
 		wakeWordEnabled:   true,
 		wakeWordThreshold: 0.7,
 		wakeWordPattern:   generateWakeWordPattern(), // Simple "hey loqa" pattern
-	}, nil
+		audioQueue:        make(chan []float32, 100),  // Buffer up to 100 audio chunks
+		stopPlayback:      make(chan bool, 1),
+	}
+
+	// Start audio playback worker
+	go ra.audioPlaybackWorker()
+
+	return ra, nil
 }
 
 // AudioChunk represents a chunk of audio data
@@ -233,11 +244,12 @@ func (pa *RelayAudio) StartRecording(audioChan chan<- AudioChunk) error {
 						log.Println("⚠️  Audio channel full, dropping chunk")
 					}
 
-					// Reset for next utterance
+					// Reset for next utterance (fire-and-forget)
 					voiceDetected = false
 					wakeWordDetected = false
 					audioBuffer = nil
 					wakeWordBuffer = nil
+					log.Println("✅ Relay: Audio sent, ready for next command")
 				} else {
 					// Still within silence timeout
 					audioBuffer = append(audioBuffer, inputBuffer...)
@@ -261,70 +273,85 @@ func (pa *RelayAudio) StopRecording() {
 	pa.isRecording = false
 }
 
-// PlayAudio plays audio data through speakers
-func (pa *RelayAudio) PlayAudio(audioData []float32) error {
-	if pa.isPlaying {
-		return fmt.Errorf("already playing audio")
+// audioPlaybackWorker processes audio chunks sequentially from the queue
+func (pa *RelayAudio) audioPlaybackWorker() {
+	for {
+		select {
+		case audioData := <-pa.audioQueue:
+			if err := pa.playAudioChunk(audioData); err != nil {
+				log.Printf("❌ Failed to play audio chunk: %v", err)
+			}
+		case <-pa.stopPlayback:
+			return
+		}
 	}
+}
 
-	// Create output buffer
-	outputBuffer := audioData
+// playAudioChunk plays a complete audio file through speakers
+func (pa *RelayAudio) playAudioChunk(audioData []float32) error {
+	log.Printf("🔊 Relay: Playing %d samples of audio\n", len(audioData))
 
-	// Open output stream
+	// Create a properly sized buffer for PortAudio
+	outputBuffer := make([]float32, pa.framesPerBuffer)
+
+	// Open output stream with correctly sized buffer
 	outputStream, err := portaudio.OpenDefaultStream(
 		0,           // input channels
 		pa.channels, // output channels
 		pa.sampleRate,
 		pa.framesPerBuffer,
-		outputBuffer[:pa.framesPerBuffer],
+		outputBuffer,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to open output stream: %w", err)
 	}
+	defer outputStream.Close()
 
-	pa.outputStream = outputStream
-	pa.isPlaying = true
-
-	log.Printf("🔊 Relay: Playing %d samples of audio\n", len(audioData))
-
-	if err := pa.outputStream.Start(); err != nil {
+	if err := outputStream.Start(); err != nil {
 		return fmt.Errorf("failed to start output stream: %w", err)
 	}
+	defer outputStream.Stop()
 
-	// Play audio in chunks
-	go func() {
-		defer func() {
-			if err := pa.outputStream.Stop(); err != nil {
-				log.Printf("⚠️ Failed to stop output stream: %v", err)
-			}
-			if err := pa.outputStream.Close(); err != nil {
-				log.Printf("⚠️ Failed to close output stream: %v", err)
-			}
-			pa.isPlaying = false
-			log.Println("🔊 Relay: Finished playing audio")
-		}()
-
-		samplesPlayed := 0
-		chunkSize := pa.framesPerBuffer * pa.channels
-
-		for samplesPlayed < len(audioData) {
-			remainingSamples := len(audioData) - samplesPlayed
-			currentChunkSize := min(chunkSize, remainingSamples)
-
-			// Copy chunk to output buffer
-			chunk := outputBuffer[samplesPlayed : samplesPlayed+currentChunkSize]
-			copy(outputBuffer[:currentChunkSize], chunk)
-
-			if err := pa.outputStream.Write(); err != nil {
-				log.Printf("❌ Error writing audio: %v", err)
-				return
-			}
-
-			samplesPlayed += currentChunkSize
+	// Play audio in properly sized chunks
+	samplesPlayed := 0
+	for samplesPlayed < len(audioData) {
+		// Clear the buffer
+		for i := range outputBuffer {
+			outputBuffer[i] = 0
 		}
-	}()
+
+		// Copy samples to buffer
+		remainingSamples := len(audioData) - samplesPlayed
+		samplesToCopy := min(pa.framesPerBuffer, remainingSamples)
+		copy(outputBuffer[:samplesToCopy], audioData[samplesPlayed:samplesPlayed+samplesToCopy])
+
+		// Write to PortAudio
+		if err := outputStream.Write(); err != nil {
+			return fmt.Errorf("error writing audio: %v", err)
+		}
+
+		samplesPlayed += samplesToCopy
+	}
 
 	return nil
+}
+
+// PlayAudio queues audio data for sequential playback
+func (pa *RelayAudio) PlayAudio(audioData []float32) error {
+	select {
+	case pa.audioQueue <- audioData:
+		return nil
+	default:
+		return fmt.Errorf("audio queue is full")
+	}
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // calculateEnergy calculates the RMS energy of an audio buffer
@@ -344,6 +371,16 @@ func (pa *RelayAudio) calculateEnergy(buffer []float32) float64 {
 // Shutdown cleans up audio resources
 func (pa *RelayAudio) Shutdown() {
 	pa.StopRecording()
+
+	// Stop audio playback worker
+	select {
+	case pa.stopPlayback <- true:
+	default:
+	}
+
+	// Close audio queue
+	close(pa.audioQueue)
+
 	if pa.outputStream != nil && pa.isPlaying {
 		if err := pa.outputStream.Stop(); err != nil {
 			log.Printf("⚠️ Failed to stop output stream during shutdown: %v", err)
@@ -447,10 +484,3 @@ func (pa *RelayAudio) SetWakeWordThreshold(threshold float64) {
 	log.Printf("🎯 Relay: Wake word threshold set to %.2f", pa.wakeWordThreshold)
 }
 
-// Helper function
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
