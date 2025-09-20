@@ -7,42 +7,42 @@ GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
-BINARY_NAME=loqa-relay
+BINARY_NAME=loqa-puck-go
 BINARY_PATH=./bin/$(BINARY_NAME)
 
 # Build targets
 build: ## Build the application
-	cd test-go && $(GOBUILD) -o ../$(BINARY_PATH) ./cmd
+	$(GOBUILD) -o $(BINARY_PATH) ./cmd
 
 run: build ## Build and run the application
 	$(BINARY_PATH)
 
 test: ## Run tests
-	cd test-go && $(GOTEST) -v ./...
+	$(GOTEST) -v ./...
 
 test-coverage: ## Run tests with coverage
-	cd test-go && $(GOTEST) -v -coverprofile=../coverage.out ./...
+	$(GOTEST) -v -coverprofile=coverage.out ./...
 	$(GOCMD) tool cover -html=coverage.out
 
 # Linting and formatting
 lint: ## Run golangci-lint
-	cd test-go && golangci-lint run --config ../.golangci.yml
+	golangci-lint run --config .golangci.yml
 
 lint-fix: ## Run golangci-lint with auto-fix
-	cd test-go && golangci-lint run --config ../.golangci.yml --fix
+	golangci-lint run --config .golangci.yml --fix
 
 lint-fast: ## Run golangci-lint with only fast linters (for CI)
-	cd test-go && golangci-lint run --config ../.golangci.yml --fast
+	golangci-lint run --config .golangci.yml --fast
 
 fmt: ## Format code with gofmt
-	cd test-go && gofmt -s -w .
+	gofmt -s -w .
 
 vet: ## Run go vet
-	cd test-go && $(GOCMD) vet ./...
+	$(GOCMD) vet ./...
 
 # Development helpers
 tidy: ## Tidy go modules
-	cd test-go && $(GOMOD) tidy
+	$(GOMOD) tidy
 
 clean: ## Clean build artifacts
 	$(GOCLEAN)

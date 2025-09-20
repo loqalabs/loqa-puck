@@ -1,0 +1,1271 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>audio: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/loqalabs/loqa-puck-go/internal/audio/audio.go (78.9%)</option>
+				
+				<option value="file1">github.com/loqalabs/loqa-puck-go/internal/audio/mock_backend.go (83.3%)</option>
+				
+				<option value="file2">github.com/loqalabs/loqa-puck-go/internal/audio/portaudio_backend.go (20.4%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">/*
+ * This file is part of Loqa (https://github.com/loqalabs/loqa).
+ * Copyright (C) 2025 Loqa Labs
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ */
+
+package audio
+
+import (
+        "fmt"
+        "log"
+        "math"
+        "sync"
+        "time"
+)
+
+// PuckAudio handles audio capture and playback for the puck device
+type PuckAudio struct {
+        sampleRate      float64
+        framesPerBuffer int
+        channels        int
+        backend         AudioBackend
+        inputStream     StreamInterface
+        outputStream    StreamInterface
+        isRecording     bool
+        isPlaying       bool
+        playbackMutex   sync.RWMutex
+
+        // Audio queue for sequential playback
+        audioQueue   chan []float32
+        stopPlayback chan bool
+
+        // VAD settings
+        energyThreshold float64
+        preBufferSize   int
+
+        // Wake word detection
+        wakeWordEnabled   bool
+        wakeWordThreshold float64
+        wakeWordPattern   []float64
+}
+
+// NewRelayAudio creates a new puck audio interface with PortAudio backend
+// DEPRECATED: Use NewPuckAudio instead.
+func NewRelayAudio() (*PuckAudio, error) <span class="cov8" title="1">{
+        return NewPuckAudio(NewPortAudioBackend())
+}</span>
+
+// NewPuckAudio creates a new puck audio interface
+func NewPuckAudio(backend AudioBackend) (*PuckAudio, error) <span class="cov8" title="1">{
+        // Initialize the audio backend
+        if err := backend.Initialize(); err != nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("failed to initialize audio backend: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">ra := &amp;PuckAudio{
+                sampleRate:        22050.0, // 22.05kHz to match TTS output
+                framesPerBuffer:   1024,
+                channels:          1, // Mono
+                backend:           backend,
+                energyThreshold:   0.01,
+                preBufferSize:     10, // ~200ms pre-buffer
+                wakeWordEnabled:   true,
+                wakeWordThreshold: 0.7,
+                wakeWordPattern:   generateWakeWordPattern(), // Simple "hey loqa" pattern
+                audioQueue:        make(chan []float32, 100), // Buffer up to 100 audio chunks
+                stopPlayback:      make(chan bool, 1),
+        }
+
+        // Start audio playback worker
+        go ra.audioPlaybackWorker()
+
+        return ra, nil</span>
+}
+
+// AudioChunk represents a chunk of audio data
+type AudioChunk struct {
+        Data          []float32
+        SampleRate    int32
+        Channels      int32
+        Timestamp     int64
+        IsWakeWord    bool
+        IsEndOfSpeech bool
+}
+
+// StartRecording begins audio capture with voice activity detection
+func (pa *PuckAudio) StartRecording(audioChan chan&lt;- AudioChunk) error <span class="cov8" title="1">{
+        if pa.isRecording </span><span class="cov8" title="1">{
+                return fmt.Errorf("already recording")
+        }</span>
+
+        // Create input buffer
+        <span class="cov8" title="1">inputBuffer := make([]float32, pa.framesPerBuffer*pa.channels)
+
+        // Pre-recording circular buffer
+        preBuffer := make([][]float32, pa.preBufferSize)
+        preBufferIndex := 0
+
+        // Create input stream
+        inputStream, err := pa.backend.CreateInputStream(
+                pa.sampleRate,
+                pa.channels,
+                pa.framesPerBuffer,
+        )
+        if err != nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("failed to create input stream: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">pa.inputStream = inputStream
+        pa.isRecording = true
+
+        if err := pa.inputStream.Start(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to start input stream: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">log.Println("🎤 Relay: Started audio recording")
+
+        // Recording loop
+        go func() </span><span class="cov8" title="1">{
+                defer func() </span><span class="cov8" title="1">{
+                        if err := pa.inputStream.Stop(); err != nil </span><span class="cov0" title="0">{
+                                log.Printf("⚠️ Failed to stop input stream: %v", err)
+                        }</span>
+                        <span class="cov8" title="1">if err := pa.inputStream.Close(); err != nil </span><span class="cov0" title="0">{
+                                log.Printf("⚠️ Failed to close input stream: %v", err)
+                        }</span>
+                        <span class="cov8" title="1">pa.isRecording = false
+                        log.Println("🎤 Relay: Stopped audio recording")</span>
+                }()
+
+                <span class="cov8" title="1">voiceDetected := false
+                lastVoiceTime := time.Now()
+                recordingStart := time.Time{}
+                var audioBuffer []float32
+                var wakeWordBuffer []float32
+                wakeWordDetected := false
+
+                for pa.isRecording </span><span class="cov8" title="1">{
+                        if err := pa.inputStream.Read(inputBuffer); err != nil </span><span class="cov0" title="0">{
+                                log.Printf("❌ Error reading audio: %v", err)
+                                return
+                        }</span>
+
+                        // Make a copy for pre-buffer
+                        <span class="cov8" title="1">bufferCopy := make([]float32, len(inputBuffer))
+                        copy(bufferCopy, inputBuffer)
+
+                        hasVoice := pa.calculateEnergy(inputBuffer) &gt; pa.energyThreshold
+
+                        // Wake word detection
+                        if pa.wakeWordEnabled &amp;&amp; hasVoice </span><span class="cov8" title="1">{
+                                wakeWordBuffer = append(wakeWordBuffer, inputBuffer...)
+
+                                // Keep wake word buffer at manageable size (2 seconds)
+                                maxWakeWordSamples := int(pa.sampleRate * 2.0)
+                                if len(wakeWordBuffer) &gt; maxWakeWordSamples </span><span class="cov0" title="0">{
+                                        excess := len(wakeWordBuffer) - maxWakeWordSamples
+                                        wakeWordBuffer = wakeWordBuffer[excess:]
+                                }</span>
+
+                                // Check for wake word pattern
+                                <span class="cov8" title="1">if !wakeWordDetected &amp;&amp; len(wakeWordBuffer) &gt; len(pa.wakeWordPattern)*100 </span><span class="cov8" title="1">{
+                                        confidence := pa.detectWakeWord(wakeWordBuffer)
+                                        if confidence &gt; pa.wakeWordThreshold </span><span class="cov8" title="1">{
+                                                wakeWordDetected = true
+                                                log.Printf("🎯 Relay: Wake word detected! (confidence: %.2f)", confidence)
+                                        }</span>
+                                }
+                        }
+
+                        <span class="cov8" title="1">if hasVoice &amp;&amp; (wakeWordDetected || !pa.wakeWordEnabled) </span><span class="cov8" title="1">{
+                                if !voiceDetected </span><span class="cov8" title="1">{
+                                        // Voice detected after wake word - start recording
+                                        voiceDetected = true
+                                        recordingStart = time.Now()
+                                        log.Println("🎤 Relay: Voice detected! Starting transmission...")
+
+                                        // Include pre-buffered audio
+                                        for i := 0; i &lt; pa.preBufferSize; i++ </span><span class="cov8" title="1">{
+                                                idx := (preBufferIndex + i) % pa.preBufferSize
+                                                if preBuffer[idx] != nil </span><span class="cov8" title="1">{
+                                                        audioBuffer = append(audioBuffer, preBuffer[idx]...)
+                                                }</span>
+                                        }
+                                }
+                                <span class="cov8" title="1">lastVoiceTime = time.Now()
+                                audioBuffer = append(audioBuffer, inputBuffer...)</span>
+
+                        } else<span class="cov8" title="1"> if voiceDetected </span><span class="cov0" title="0">{
+                                // Check for end of speech
+                                timeSinceLast := time.Since(lastVoiceTime)
+                                if timeSinceLast &gt; 2*time.Second </span><span class="cov0" title="0">{
+                                        // End of speech detected
+                                        log.Printf("🎤 Relay: End of speech detected - sending %.1fs of audio\n",
+                                                time.Since(recordingStart).Seconds())
+
+                                        // Send the complete audio buffer
+                                        channels := pa.channels
+                                        if channels &lt; 0 || channels &gt; 255 </span><span class="cov0" title="0">{
+                                                log.Printf("⚠️ Invalid channel count: %d, using 1", channels)
+                                                channels = 1
+                                        }</span>
+                                        // #nosec G115 - channels is bounds-checked above
+                                        <span class="cov0" title="0">channelsInt32 := int32(channels)
+                                        // Send wake word audio first if wake word was detected
+                                        if wakeWordDetected &amp;&amp; wakeWordBuffer != nil </span><span class="cov0" title="0">{
+                                                wakeWordChunk := AudioChunk{
+                                                        Data:          wakeWordBuffer,
+                                                        SampleRate:    int32(pa.sampleRate),
+                                                        Channels:      channelsInt32,
+                                                        Timestamp:     time.Now().UnixNano(),
+                                                        IsWakeWord:    true,
+                                                        IsEndOfSpeech: false,
+                                                }
+
+                                                select </span>{
+                                                case audioChan &lt;- wakeWordChunk:<span class="cov0" title="0"></span>
+                                                        // Successfully sent wake word
+                                                default:<span class="cov0" title="0">
+                                                        log.Println("⚠️  Audio channel full, dropping wake word chunk")</span>
+                                                }
+                                        }
+
+                                        // Send speech audio chunk
+                                        <span class="cov0" title="0">chunk := AudioChunk{
+                                                Data:          audioBuffer,
+                                                SampleRate:    int32(pa.sampleRate),
+                                                Channels:      channelsInt32,
+                                                Timestamp:     time.Now().UnixNano(),
+                                                IsWakeWord:    false, // This is speech, not wake word
+                                                IsEndOfSpeech: true,
+                                        }
+
+                                        select </span>{
+                                        case audioChan &lt;- chunk:<span class="cov0" title="0"></span>
+                                                // Successfully sent
+                                        default:<span class="cov0" title="0">
+                                                log.Println("⚠️  Audio channel full, dropping chunk")</span>
+                                        }
+
+                                        // Reset for next utterance (fire-and-forget)
+                                        <span class="cov0" title="0">voiceDetected = false
+                                        wakeWordDetected = false
+                                        audioBuffer = nil
+                                        wakeWordBuffer = nil
+                                        log.Println("✅ Relay: Audio sent, ready for next command")</span>
+                                } else<span class="cov0" title="0"> {
+                                        // Still within silence timeout
+                                        audioBuffer = append(audioBuffer, inputBuffer...)
+                                }</span>
+                        } else<span class="cov8" title="1"> {
+                                // No voice - store in pre-buffer
+                                preBuffer[preBufferIndex] = bufferCopy
+                                preBufferIndex = (preBufferIndex + 1) % pa.preBufferSize
+                        }</span>
+
+                        // Prevent busy waiting
+                        <span class="cov8" title="1">time.Sleep(10 * time.Millisecond)</span>
+                }
+        }()
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// StopRecording stops audio capture
+func (pa *PuckAudio) StopRecording() <span class="cov8" title="1">{
+        pa.isRecording = false
+}</span>
+
+// audioPlaybackWorker processes audio chunks sequentially from the queue
+func (pa *PuckAudio) audioPlaybackWorker() <span class="cov8" title="1">{
+        for </span><span class="cov8" title="1">{
+                select </span>{
+                case audioData := &lt;-pa.audioQueue:<span class="cov8" title="1">
+                        if err := pa.playAudioChunk(audioData); err != nil </span><span class="cov8" title="1">{
+                                log.Printf("❌ Failed to play audio chunk: %v", err)
+                        }</span>
+                case &lt;-pa.stopPlayback:<span class="cov8" title="1">
+                        return</span>
+                }
+        }
+}
+
+// playAudioChunk plays a complete audio file through speakers
+func (pa *PuckAudio) playAudioChunk(audioData []float32) error <span class="cov8" title="1">{
+        // Set playing flag
+        pa.playbackMutex.Lock()
+        pa.isPlaying = true
+        pa.playbackMutex.Unlock()
+
+        // Ensure flag is cleared when done
+        defer func() </span><span class="cov8" title="1">{
+                pa.playbackMutex.Lock()
+                pa.isPlaying = false
+                pa.playbackMutex.Unlock()
+        }</span>()
+
+        <span class="cov8" title="1">log.Printf("🔊 Relay: Playing %d samples of audio\n", len(audioData))
+
+        // Create output stream
+        outputStream, err := pa.backend.CreateOutputStream(
+                pa.sampleRate,
+                pa.channels,
+                pa.framesPerBuffer,
+        )
+        if err != nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("failed to create output stream: %w", err)
+        }</span>
+        <span class="cov8" title="1">defer func() </span><span class="cov8" title="1">{
+                if err := outputStream.Close(); err != nil </span><span class="cov0" title="0">{
+                        log.Printf("⚠️ Failed to close output stream: %v", err)
+                }</span>
+        }()
+
+        <span class="cov8" title="1">if err := outputStream.Start(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to start output stream: %w", err)
+        }</span>
+        <span class="cov8" title="1">defer func() </span><span class="cov8" title="1">{
+                if err := outputStream.Stop(); err != nil </span><span class="cov0" title="0">{
+                        log.Printf("⚠️ Failed to stop output stream: %v", err)
+                }</span>
+        }()
+
+        // Play audio in properly sized chunks
+        <span class="cov8" title="1">samplesPlayed := 0
+        for samplesPlayed &lt; len(audioData) </span><span class="cov8" title="1">{
+                // Copy samples to write buffer
+                remainingSamples := len(audioData) - samplesPlayed
+                samplesToCopy := min(pa.framesPerBuffer, remainingSamples)
+
+                // Create a chunk to write
+                chunk := make([]float32, samplesToCopy)
+                copy(chunk, audioData[samplesPlayed:samplesPlayed+samplesToCopy])
+
+                // Write to stream
+                if err := outputStream.Write(chunk); err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("error writing audio: %v", err)
+                }</span>
+
+                <span class="cov8" title="1">samplesPlayed += samplesToCopy</span>
+        }
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// PlayAudio queues audio data for sequential playback
+func (pa *PuckAudio) PlayAudio(audioData []float32) error <span class="cov8" title="1">{
+        pa.playbackMutex.RLock()
+        currentlyPlaying := pa.isPlaying
+        pa.playbackMutex.RUnlock()
+
+        if currentlyPlaying </span><span class="cov8" title="1">{
+                return fmt.Errorf("audio is already playing")
+        }</span>
+
+        <span class="cov8" title="1">select </span>{
+        case pa.audioQueue &lt;- audioData:<span class="cov8" title="1">
+                return nil</span>
+        default:<span class="cov0" title="0">
+                return fmt.Errorf("audio queue is full")</span>
+        }
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int <span class="cov8" title="1">{
+        if a &lt; b </span><span class="cov8" title="1">{
+                return a
+        }</span>
+        <span class="cov8" title="1">return b</span>
+}
+
+// calculateEnergy calculates the RMS energy of an audio buffer
+func (pa *PuckAudio) calculateEnergy(buffer []float32) float64 <span class="cov8" title="1">{
+        if len(buffer) == 0 </span><span class="cov8" title="1">{
+                return 0
+        }</span>
+
+        <span class="cov8" title="1">var sum float64
+        for _, sample := range buffer </span><span class="cov8" title="1">{
+                sum += float64(sample * sample)
+        }</span>
+
+        <span class="cov8" title="1">return math.Sqrt(sum / float64(len(buffer)))</span>
+}
+
+// Shutdown cleans up audio resources
+func (pa *PuckAudio) Shutdown() <span class="cov8" title="1">{
+        pa.StopRecording()
+
+        // Stop audio playback worker
+        select </span>{
+        case pa.stopPlayback &lt;- true:<span class="cov8" title="1"></span>
+        default:<span class="cov0" title="0"></span>
+        }
+
+        // Close audio queue
+        <span class="cov8" title="1">close(pa.audioQueue)
+
+        if pa.outputStream != nil &amp;&amp; pa.isPlaying </span><span class="cov0" title="0">{
+                if err := pa.outputStream.Stop(); err != nil </span><span class="cov0" title="0">{
+                        log.Printf("⚠️ Failed to stop output stream during shutdown: %v", err)
+                }</span>
+                <span class="cov0" title="0">if err := pa.outputStream.Close(); err != nil </span><span class="cov0" title="0">{
+                        log.Printf("⚠️ Failed to close output stream during shutdown: %v", err)
+                }</span>
+        }
+        <span class="cov8" title="1">if err := pa.backend.Terminate(); err != nil </span><span class="cov0" title="0">{
+                log.Printf("⚠️ Failed to terminate audio backend: %v", err)
+        }</span>
+        <span class="cov8" title="1">log.Println("🔌 Relay: Audio system shutdown")</span>
+}
+
+// generateWakeWordPattern creates a simple frequency pattern for "hey loqa"
+func generateWakeWordPattern() []float64 <span class="cov8" title="1">{
+        // Simple frequency envelope pattern approximating "hey loqa"
+        // This is a very basic pattern - in production you'd use proper ML models
+        return []float64{
+                0.1, 0.3, 0.8, 0.6, 0.2, // "hey" - rising then falling
+                0.1, 0.1, 0.1, // pause
+                0.2, 0.5, 0.4, 0.7, 0.3, // "lo" - moderate energy
+                0.6, 0.8, 0.5, 0.2, // "qa" - peak then drop
+        }
+}</span>
+
+// detectWakeWord performs basic pattern matching for wake word detection
+func (pa *PuckAudio) detectWakeWord(audioBuffer []float32) float64 <span class="cov8" title="1">{
+        if len(audioBuffer) == 0 || len(pa.wakeWordPattern) == 0 </span><span class="cov8" title="1">{
+                return 0.0
+        }</span>
+
+        // Calculate energy envelope of the audio
+        <span class="cov8" title="1">chunkSize := len(audioBuffer) / len(pa.wakeWordPattern)
+        if chunkSize &lt; 100 </span><span class="cov8" title="1">{ // Need minimum samples per chunk
+                return 0.0
+        }</span>
+
+        <span class="cov8" title="1">var audioEnvelope []float64
+        for i := 0; i &lt; len(pa.wakeWordPattern); i++ </span><span class="cov8" title="1">{
+                start := i * chunkSize
+                end := start + chunkSize
+                if end &gt; len(audioBuffer) </span><span class="cov0" title="0">{
+                        end = len(audioBuffer)
+                }</span>
+
+                <span class="cov8" title="1">chunk := audioBuffer[start:end]
+                energy := pa.calculateEnergy(chunk)
+                audioEnvelope = append(audioEnvelope, energy)</span>
+        }
+
+        // Normalize audio envelope
+        <span class="cov8" title="1">maxEnergy := 0.0
+        for _, energy := range audioEnvelope </span><span class="cov8" title="1">{
+                if energy &gt; maxEnergy </span><span class="cov8" title="1">{
+                        maxEnergy = energy
+                }</span>
+        }
+
+        <span class="cov8" title="1">if maxEnergy == 0 </span><span class="cov8" title="1">{
+                return 0.0
+        }</span>
+
+        <span class="cov8" title="1">for i := range audioEnvelope </span><span class="cov8" title="1">{
+                audioEnvelope[i] /= maxEnergy
+        }</span>
+
+        // Calculate correlation with wake word pattern
+        <span class="cov8" title="1">correlation := 0.0
+        for i := 0; i &lt; len(pa.wakeWordPattern) &amp;&amp; i &lt; len(audioEnvelope); i++ </span><span class="cov8" title="1">{
+                correlation += pa.wakeWordPattern[i] * audioEnvelope[i]
+        }</span>
+
+        // Normalize correlation
+        <span class="cov8" title="1">patternEnergy := 0.0
+        for _, val := range pa.wakeWordPattern </span><span class="cov8" title="1">{
+                patternEnergy += val * val
+        }</span>
+
+        <span class="cov8" title="1">if patternEnergy == 0 </span><span class="cov0" title="0">{
+                return 0.0
+        }</span>
+
+        <span class="cov8" title="1">confidence := correlation / math.Sqrt(patternEnergy)
+        return math.Max(0.0, math.Min(1.0, confidence))</span>
+}
+
+// EnableWakeWord enables or disables wake word detection
+func (pa *PuckAudio) EnableWakeWord(enabled bool) <span class="cov8" title="1">{
+        pa.wakeWordEnabled = enabled
+        if enabled </span><span class="cov8" title="1">{
+                log.Println("🎯 Relay: Wake word detection enabled")
+        }</span> else<span class="cov8" title="1"> {
+                log.Println("🎯 Relay: Wake word detection disabled")
+        }</span>
+}
+
+// SetWakeWordThreshold sets the confidence threshold for wake word detection
+func (pa *PuckAudio) SetWakeWordThreshold(threshold float64) <span class="cov8" title="1">{
+        pa.wakeWordThreshold = math.Max(0.0, math.Min(1.0, threshold))
+        log.Printf("🎯 Relay: Wake word threshold set to %.2f", pa.wakeWordThreshold)
+}</span>
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">/*
+ * This file is part of Loqa (https://github.com/loqalabs/loqa).
+ * Copyright (C) 2025 Loqa Labs
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ */
+
+package audio
+
+import (
+        "fmt"
+        "math"
+        "sync"
+        "time"
+)
+
+// MockAudioBackend implements AudioBackend for testing without hardware dependencies
+type MockAudioBackend struct {
+        mu                  sync.Mutex
+        initialized         bool
+        streams             map[string]*MockStream
+        streamCounter       int
+        initError           error
+        terminateError      error
+        createStreamError   error
+        simulateRealTiming  bool
+        recordedAudioData   [][]float32
+        playbackAudioData   [][]float32
+}
+
+// NewMockAudioBackend creates a new mock audio backend
+func NewMockAudioBackend() *MockAudioBackend <span class="cov8" title="1">{
+        return &amp;MockAudioBackend{
+                streams:           make(map[string]*MockStream),
+                simulateRealTiming: true,
+                recordedAudioData:  make([][]float32, 0),
+                playbackAudioData:  make([][]float32, 0),
+        }
+}</span>
+
+// SetInitError configures the backend to return an error on Initialize()
+func (m *MockAudioBackend) SetInitError(err error) <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        m.initError = err
+}</span>
+
+// SetCreateStreamError configures the backend to return an error on stream creation
+func (m *MockAudioBackend) SetCreateStreamError(err error) <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        m.createStreamError = err
+}</span>
+
+// SetSimulateRealTiming controls whether the mock simulates real audio timing
+func (m *MockAudioBackend) SetSimulateRealTiming(simulate bool) <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        m.simulateRealTiming = simulate
+}</span>
+
+// GetRecordedAudioData returns all audio data that was "recorded"
+func (m *MockAudioBackend) GetRecordedAudioData() [][]float32 <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        result := make([][]float32, len(m.recordedAudioData))
+        copy(result, m.recordedAudioData)
+        return result
+}</span>
+
+// GetPlaybackAudioData returns all audio data that was "played back"
+func (m *MockAudioBackend) GetPlaybackAudioData() [][]float32 <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        result := make([][]float32, len(m.playbackAudioData))
+        copy(result, m.playbackAudioData)
+        return result
+}</span>
+
+// Initialize initializes the mock audio subsystem
+func (m *MockAudioBackend) Initialize() error <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        if m.initError != nil </span><span class="cov8" title="1">{
+                return m.initError
+        }</span>
+
+        <span class="cov8" title="1">m.initialized = true
+        return nil</span>
+}
+
+// Terminate terminates the mock audio subsystem
+func (m *MockAudioBackend) Terminate() error <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        if m.terminateError != nil </span><span class="cov0" title="0">{
+                return m.terminateError
+        }</span>
+
+        // Stop all streams first without holding locks
+        <span class="cov8" title="1">var streams []StreamInterface
+        for _, stream := range m.streams </span><span class="cov8" title="1">{
+                streams = append(streams, stream)
+        }</span>
+
+        // Release the lock before calling Stop/Close to avoid deadlocks
+        <span class="cov8" title="1">m.mu.Unlock()
+
+        for _, stream := range streams </span><span class="cov8" title="1">{
+                stream.Stop()
+                stream.Close()
+        }</span>
+
+        // Re-acquire lock to update state
+        <span class="cov8" title="1">m.mu.Lock()
+        m.initialized = false
+        return nil</span>
+}
+
+// CreateInputStream creates a mock input stream
+func (m *MockAudioBackend) CreateInputStream(sampleRate float64, channels, bufferSize int) (StreamInterface, error) <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        if !m.initialized </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("mock audio backend not initialized")
+        }</span>
+
+        <span class="cov8" title="1">if m.createStreamError != nil </span><span class="cov8" title="1">{
+                return nil, m.createStreamError
+        }</span>
+
+        <span class="cov8" title="1">streamID := fmt.Sprintf("input_%d", m.streamCounter)
+        m.streamCounter++
+
+        stream := &amp;MockStream{
+                id:                 streamID,
+                backend:            m,
+                sampleRate:         sampleRate,
+                channels:           channels,
+                bufferSize:         bufferSize,
+                isInput:            true,
+                simulateRealTiming: m.simulateRealTiming,
+                stopChannel:        make(chan bool, 1),
+        }
+
+        m.streams[streamID] = stream
+        return stream, nil</span>
+}
+
+// CreateOutputStream creates a mock output stream
+func (m *MockAudioBackend) CreateOutputStream(sampleRate float64, channels, bufferSize int) (StreamInterface, error) <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        if !m.initialized </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("mock audio backend not initialized")
+        }</span>
+
+        <span class="cov8" title="1">if m.createStreamError != nil </span><span class="cov0" title="0">{
+                return nil, m.createStreamError
+        }</span>
+
+        <span class="cov8" title="1">streamID := fmt.Sprintf("output_%d", m.streamCounter)
+        m.streamCounter++
+
+        stream := &amp;MockStream{
+                id:                 streamID,
+                backend:            m,
+                sampleRate:         sampleRate,
+                channels:           channels,
+                bufferSize:         bufferSize,
+                isInput:            false,
+                simulateRealTiming: m.simulateRealTiming,
+                stopChannel:        make(chan bool, 1),
+        }
+
+        m.streams[streamID] = stream
+        return stream, nil</span>
+}
+
+// MockStream implements StreamInterface for testing
+type MockStream struct {
+        mu                 sync.Mutex
+        id                 string
+        backend            *MockAudioBackend
+        sampleRate         float64
+        channels           int
+        bufferSize         int
+        isInput            bool
+        isOpen             bool
+        isActive           bool
+        simulateRealTiming bool
+        callback           StreamCallback
+        stopChannel        chan bool
+        startError         error
+        stopError          error
+        closeError         error
+        writeError         error
+        readError          error
+        audioDataGenerator func([]float32) // For generating mock audio input
+}
+
+// SetStartError configures the stream to return an error on Start()
+func (m *MockStream) SetStartError(err error) <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        m.startError = err
+}</span>
+
+// SetWriteError configures the stream to return an error on Write()
+func (m *MockStream) SetWriteError(err error) <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        m.writeError = err
+}</span>
+
+// SetAudioDataGenerator sets a function to generate mock audio input data
+func (m *MockStream) SetAudioDataGenerator(generator func([]float32)) <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        m.audioDataGenerator = generator
+}</span>
+
+// Start starts the mock stream
+func (m *MockStream) Start() error <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        if m.startError != nil </span><span class="cov8" title="1">{
+                return m.startError
+        }</span>
+
+        <span class="cov8" title="1">if m.isActive </span><span class="cov0" title="0">{
+                return fmt.Errorf("stream already active")
+        }</span>
+
+        <span class="cov8" title="1">m.isActive = true
+        m.isOpen = true
+
+        // Start background processing for input streams
+        if m.isInput </span><span class="cov8" title="1">{
+                go m.simulateAudioInput()
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// Stop stops the mock stream
+func (m *MockStream) Stop() error <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        if m.stopError != nil </span><span class="cov0" title="0">{
+                return m.stopError
+        }</span>
+
+        <span class="cov8" title="1">if !m.isActive </span><span class="cov8" title="1">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="1">m.isActive = false
+
+        // Signal stop to background goroutine
+        select </span>{
+        case m.stopChannel &lt;- true:<span class="cov8" title="1"></span>
+        default:<span class="cov0" title="0"></span>
+        }
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// Close closes the mock stream
+func (m *MockStream) Close() error <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        if m.closeError != nil </span><span class="cov0" title="0">{
+                return m.closeError
+        }</span>
+
+        <span class="cov8" title="1">if !m.isOpen </span><span class="cov8" title="1">{
+                return nil // Already closed
+        }</span>
+
+        <span class="cov8" title="1">m.isOpen = false
+        m.isActive = false
+
+        // Signal stop to avoid deadlocks
+        select </span>{
+        case m.stopChannel &lt;- true:<span class="cov8" title="1"></span>
+        default:<span class="cov8" title="1"></span>
+        }
+
+        // Remove from backend - use a separate goroutine to avoid deadlock
+        <span class="cov8" title="1">go func() </span><span class="cov8" title="1">{
+                m.backend.mu.Lock()
+                delete(m.backend.streams, m.id)
+                m.backend.mu.Unlock()
+        }</span>()
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// Write writes audio data to the mock output stream
+func (m *MockStream) Write(data []float32) error <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        if m.writeError != nil </span><span class="cov8" title="1">{
+                return m.writeError
+        }</span>
+
+        <span class="cov8" title="1">if !m.isOpen </span><span class="cov0" title="0">{
+                return fmt.Errorf("stream not open")
+        }</span>
+
+        <span class="cov8" title="1">if m.isInput </span><span class="cov0" title="0">{
+                return fmt.Errorf("cannot write to input stream")
+        }</span>
+
+        // Record the audio data
+        <span class="cov8" title="1">dataCopy := make([]float32, len(data))
+        copy(dataCopy, data)
+
+        m.backend.mu.Lock()
+        m.backend.playbackAudioData = append(m.backend.playbackAudioData, dataCopy)
+        m.backend.mu.Unlock()
+
+        // Simulate real timing if enabled
+        if m.simulateRealTiming </span><span class="cov8" title="1">{
+                duration := time.Duration(float64(len(data)) / m.sampleRate * float64(time.Second))
+                time.Sleep(duration)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// Read reads audio data from the mock input stream
+func (m *MockStream) Read(data []float32) error <span class="cov8" title="1">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        if m.readError != nil </span><span class="cov0" title="0">{
+                return m.readError
+        }</span>
+
+        <span class="cov8" title="1">if !m.isOpen </span><span class="cov0" title="0">{
+                return fmt.Errorf("stream not open")
+        }</span>
+
+        <span class="cov8" title="1">if !m.isInput </span><span class="cov0" title="0">{
+                return fmt.Errorf("cannot read from output stream")
+        }</span>
+
+        // Generate mock audio data
+        <span class="cov8" title="1">if m.audioDataGenerator != nil </span><span class="cov0" title="0">{
+                m.audioDataGenerator(data)
+        }</span> else<span class="cov8" title="1"> {
+                // Default: generate a simple sine wave
+                for i := range data </span><span class="cov8" title="1">{
+                        // 440 Hz sine wave
+                        t := float64(i) / m.sampleRate
+                        data[i] = float32(0.1 * math.Sin(2*math.Pi*440*t))
+                }</span>
+        }
+
+        // Record the audio data
+        <span class="cov8" title="1">dataCopy := make([]float32, len(data))
+        copy(dataCopy, data)
+
+        m.backend.mu.Lock()
+        m.backend.recordedAudioData = append(m.backend.recordedAudioData, dataCopy)
+        m.backend.mu.Unlock()
+
+        // Simulate real timing if enabled
+        if m.simulateRealTiming </span><span class="cov8" title="1">{
+                duration := time.Duration(float64(len(data)) / m.sampleRate * float64(time.Second))
+                time.Sleep(duration)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// IsActive returns true if the mock stream is active
+func (m *MockStream) IsActive() bool <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        return m.isActive
+}</span>
+
+// SetCallback sets the callback function
+func (m *MockStream) SetCallback(callback StreamCallback) error <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        m.callback = callback
+        return nil
+}</span>
+
+// simulateAudioInput runs in background to simulate continuous audio input
+func (m *MockStream) simulateAudioInput() <span class="cov8" title="1">{
+        buffer := make([]float32, m.bufferSize*m.channels)
+        ticker := time.NewTicker(time.Duration(float64(m.bufferSize)/m.sampleRate*1000) * time.Millisecond)
+        defer ticker.Stop()
+
+        for </span><span class="cov8" title="1">{
+                select </span>{
+                case &lt;-m.stopChannel:<span class="cov8" title="1">
+                        return</span>
+                case &lt;-ticker.C:<span class="cov8" title="1">
+                        // Check if still active without holding lock for too long
+                        m.mu.Lock()
+                        isActive := m.isActive
+                        m.mu.Unlock()
+
+                        if !isActive </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+
+                        // Generate audio data
+                        <span class="cov8" title="1">m.mu.Lock()
+                        if m.audioDataGenerator != nil </span><span class="cov0" title="0">{
+                                m.audioDataGenerator(buffer)
+                        }</span> else<span class="cov8" title="1"> {
+                                // Default: generate sine wave with some variation
+                                for i := range buffer </span><span class="cov8" title="1">{
+                                        t := float64(time.Now().UnixNano()) / 1e9
+                                        buffer[i] = float32(0.1 * math.Sin(2*math.Pi*440*t))
+                                }</span>
+                        }
+                        <span class="cov8" title="1">m.mu.Unlock()
+
+                        // Record the data
+                        dataCopy := make([]float32, len(buffer))
+                        copy(dataCopy, buffer)
+
+                        m.backend.mu.Lock()
+                        m.backend.recordedAudioData = append(m.backend.recordedAudioData, dataCopy)
+                        m.backend.mu.Unlock()</span>
+                }
+        }
+}</pre>
+		
+		<pre class="file" id="file2" style="display: none">/*
+ * This file is part of Loqa (https://github.com/loqalabs/loqa).
+ * Copyright (C) 2025 Loqa Labs
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
+ */
+
+package audio
+
+import (
+        "fmt"
+
+        "github.com/gordonklaus/portaudio"
+)
+
+// PortAudioBackend implements AudioBackend using the real PortAudio library
+type PortAudioBackend struct {
+        initialized bool
+}
+
+// NewPortAudioBackend creates a new PortAudio backend
+func NewPortAudioBackend() *PortAudioBackend <span class="cov8" title="1">{
+        return &amp;PortAudioBackend{}
+}</span>
+
+// Initialize initializes the PortAudio subsystem
+func (p *PortAudioBackend) Initialize() error <span class="cov8" title="1">{
+        if p.initialized </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="1">if err := portaudio.Initialize(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to initialize PortAudio: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">p.initialized = true
+        return nil</span>
+}
+
+// Terminate terminates the PortAudio subsystem
+func (p *PortAudioBackend) Terminate() error <span class="cov8" title="1">{
+        if !p.initialized </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="1">err := portaudio.Terminate()
+        p.initialized = false
+        return err</span>
+}
+
+// CreateInputStream creates an input stream for recording
+func (p *PortAudioBackend) CreateInputStream(sampleRate float64, channels, bufferSize int) (StreamInterface, error) <span class="cov0" title="0">{
+        if !p.initialized </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("PortAudio not initialized")
+        }</span>
+
+        // Create input buffer
+        <span class="cov0" title="0">inputBuffer := make([]float32, bufferSize*channels)
+
+        stream, err := portaudio.OpenDefaultStream(
+                channels, // input channels
+                0,        // output channels (none for input stream)
+                sampleRate,
+                bufferSize,
+                inputBuffer,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to open input stream: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return &amp;PortAudioStream{
+                stream:      stream,
+                inputBuffer: inputBuffer,
+                isInput:     true,
+        }, nil</span>
+}
+
+// CreateOutputStream creates an output stream for playback
+func (p *PortAudioBackend) CreateOutputStream(sampleRate float64, channels, bufferSize int) (StreamInterface, error) <span class="cov8" title="1">{
+        if !p.initialized </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("PortAudio not initialized")
+        }</span>
+
+        // Create output buffer
+        <span class="cov0" title="0">outputBuffer := make([]float32, bufferSize*channels)
+
+        stream, err := portaudio.OpenDefaultStream(
+                0,        // input channels (none for output stream)
+                channels, // output channels
+                sampleRate,
+                bufferSize,
+                outputBuffer,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to open output stream: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return &amp;PortAudioStream{
+                stream:       stream,
+                outputBuffer: outputBuffer,
+                isInput:      false,
+        }, nil</span>
+}
+
+// PortAudioStream implements StreamInterface using PortAudio streams
+type PortAudioStream struct {
+        stream       *portaudio.Stream
+        inputBuffer  []float32
+        outputBuffer []float32
+        isInput      bool
+        callback     StreamCallback
+}
+
+// Start starts the audio stream
+func (p *PortAudioStream) Start() error <span class="cov0" title="0">{
+        if p.stream == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("stream is nil")
+        }</span>
+        <span class="cov0" title="0">return p.stream.Start()</span>
+}
+
+// Stop stops the audio stream
+func (p *PortAudioStream) Stop() error <span class="cov0" title="0">{
+        if p.stream == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("stream is nil")
+        }</span>
+        <span class="cov0" title="0">return p.stream.Stop()</span>
+}
+
+// Close closes the audio stream
+func (p *PortAudioStream) Close() error <span class="cov0" title="0">{
+        if p.stream == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("stream is nil")
+        }</span>
+        <span class="cov0" title="0">return p.stream.Close()</span>
+}
+
+// Write writes audio data to the output stream
+func (p *PortAudioStream) Write(data []float32) error <span class="cov0" title="0">{
+        if p.stream == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("stream is nil")
+        }</span>
+        <span class="cov0" title="0">if p.isInput </span><span class="cov0" title="0">{
+                return fmt.Errorf("cannot write to input stream")
+        }</span>
+
+        // Copy data to output buffer
+        <span class="cov0" title="0">copy(p.outputBuffer, data)
+        return p.stream.Write()</span>
+}
+
+// Read reads audio data from the input stream
+func (p *PortAudioStream) Read(data []float32) error <span class="cov0" title="0">{
+        if p.stream == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("stream is nil")
+        }</span>
+        <span class="cov0" title="0">if !p.isInput </span><span class="cov0" title="0">{
+                return fmt.Errorf("cannot read from output stream")
+        }</span>
+
+        <span class="cov0" title="0">if err := p.stream.Read(); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        // Copy data from input buffer
+        <span class="cov0" title="0">copy(data, p.inputBuffer)
+        return nil</span>
+}
+
+// IsActive returns true if the stream is active
+func (p *PortAudioStream) IsActive() bool <span class="cov0" title="0">{
+        if p.stream == nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+        // PortAudio doesn't have IsActive method, we track state manually
+        // In practice, a stream is active if it has been started and not stopped
+        <span class="cov0" title="0">return true</span> // Simplified for now - could track state if needed
+}
+
+// SetCallback sets the callback function (not used in this implementation)
+func (p *PortAudioStream) SetCallback(callback StreamCallback) error <span class="cov0" title="0">{
+        p.callback = callback
+        return nil
+}</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

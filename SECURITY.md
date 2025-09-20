@@ -53,7 +53,7 @@ This security policy applies to:
 - **loqa-hub** - Central hub service for voice processing
 - **loqa-device-service** - Device control and command execution service (archived Sept 2025)  
 - **loqa-proto** - Shared protocol definitions and generated bindings
-- **loqa-relay** - Audio capture device implementation (test client and firmware)
+- **loqa-puck-go** - Go puck reference implementation for audio capture
 - **loqa-skills** - Voice assistant skills and integrations
 
 ## Out of Scope

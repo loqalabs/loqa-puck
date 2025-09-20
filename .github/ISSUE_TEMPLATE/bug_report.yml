@@ -1,5 +1,5 @@
 name: Bug Report
-description: File a bug report to help us improve Loqa Hub
+description: File a bug report to help us improve Loqa Relay
 title: "[Bug]: "
 labels: ["bug", "triage"]
 assignees:
@@ -26,11 +26,11 @@ body:
       label: Component
       description: Which component is affected?
       options:
-        - gRPC Audio Service
-        - Whisper STT Integration
-        - LLM Command Parser
+        - HTTP Streaming Audio Service
+        - Audio Capture Pipeline
+        - Wake Word Detection
         - NATS Messaging
-        - HTTP API
+        - Binary Frame Protocol
         - Docker Deployment
         - Other
     validations:
@@ -47,7 +47,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: What version of Loqa Hub are you running?
+      description: What version of Loqa Relay are you running?
       placeholder: ex. v0.1.0, main branch, commit hash
     validations:
       required: true

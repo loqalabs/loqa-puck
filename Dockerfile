@@ -10,13 +10,13 @@ RUN apk add --no-cache \
 
 WORKDIR /build
 
-# Set up the test-go directory structure
-WORKDIR /build/loqa-relay/test-go
-COPY loqa-relay/test-go/go.mod loqa-relay/test-go/go.sum ./
+# Copy Go module files
+COPY go.mod go.sum ./
 RUN go mod download
 
-COPY loqa-relay/test-go/ .
-RUN go build -o test-relay ./cmd
+# Copy source code and build
+COPY . .
+RUN go build -o loqa-puck-go ./cmd
 
 FROM alpine:latest
 RUN apk --no-cache add \
@@ -26,10 +26,11 @@ RUN apk --no-cache add \
 
 WORKDIR /root/
 
-COPY --from=builder /build/loqa-relay/test-go/test-relay .
+COPY --from=builder /build/loqa-puck-go .
 
-ENV HUB_ADDRESS=hub:50051
-ENV RELAY_ID=docker-relay
+ENV HUB_ADDRESS=http://hub:3000
+ENV PUCK_ID=docker-puck
 ENV WAKE_WORD_THRESHOLD=0.7
+ENV NATS_URL=nats://nats:4222
 
-CMD ["./test-relay"]
+CMD ["./loqa-puck-go"]

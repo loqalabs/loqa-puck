@@ -3,110 +3,268 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL--3.0-blue?style=for-the-badge)](LICENSE)
 [![Made with ❤️ by LoqaLabs](https://img.shields.io/badge/Made%20with%20%E2%9D%A4%EF%B8%8F-by%20LoqaLabs-ffb6c1?style=for-the-badge)](https://loqalabs.com)
 
-# Loqa Test Relay Service
+# Loqa Relay - Go Puck Reference Implementation
 
-[![CI/CD Pipeline](https://github.com/loqalabs/loqa-relay/actions/workflows/ci.yml/badge.svg)](https://github.com/loqalabs/loqa-relay/actions/workflows/ci.yml)
+[![CI/CD Pipeline](https://github.com/loqalabs/loqa-puck-go/actions/workflows/ci.yml/badge.svg)](https://github.com/loqalabs/loqa-puck-go/actions/workflows/ci.yml)
 
-A test implementation of the Loqa relay that captures audio and streams it to the hub via gRPC.
+A reference implementation of the Loqa puck client that captures audio and streams it to the hub via HTTP/1.1 streaming with binary frame protocol. This implementation serves as the foundation for future ESP32 firmware development.
 
 ## Features
 
 - 🎤 **Real-time audio capture** with PortAudio
 - 🎧 **Voice Activity Detection** with pre-buffering
 - 🎯 **Wake word detection** for "Hey Loqa"
-- 📡 **gRPC audio streaming** to hub
-- 🔊 **Audio playback** for TTS responses
-- ⚡ **Production-like architecture**
-
-## Usage
-
-```bash
-# Build the relay service
-cd test-go
-go build -o test-relay ./cmd
-
-# Run the relay (hub must be running on localhost:50051)
-./test-relay
-
-# Run with custom hub address and relay ID
-./test-relay -hub hub.local:50051 -id kitchen-relay
-```
-
-## Wake Word Detection
-
-The relay includes wake word detection for "Hey Loqa":
-
-- **Wake word**: "Hey Loqa" 
-- **Algorithm**: Simple energy envelope pattern matching
-- **Threshold**: Configurable confidence level (default: 0.7)
-- **Status**: Enabled by default
-
-The relay will only transmit audio to the hub after detecting the wake word, providing privacy and reducing network traffic.
+- 📡 **HTTP/1.1 streaming** to hub with binary frame protocol
+- 🔊 **Audio playback** for TTS responses via NATS
+- ⚡ **ESP32-compatible architecture** with 4KB frame limits
+- 🔧 **Production-ready design** for embedded deployment
 
 ## Architecture
 
+### HTTP/1.1 Streaming Transport
+
+The relay uses HTTP/1.1 chunked transfer encoding for bidirectional streaming communication with the hub:
+
 ```
-Relay (this service)     gRPC Stream      Hub (Docker)
-┌─────────────────┐    ──────────────►   ┌─────────────┐
-│ Audio Capture   │    Audio Chunks     │ LLM Parser  │
-│ Voice Detection │                     │ Commands    │
-│ Wake Word Det   │    ◄──────────────  │ Responses   │
-│ Audio Playback  │    Command/TTS      │ Device Ctrl │
-└─────────────────┘                     └─────────────┘
+Puck (loqa-puck-go)           HTTP/1.1 Stream            Hub (loqa-hub)
+┌─────────────────────┐    ────────────────────►      ┌─────────────────┐
+│ Audio Capture       │    Binary Frame Protocol      │ Intent Cascade  │
+│ Wake Word Detection │                               │ • Reflex        │
+│ Binary Frame Encode │    ◄────────────────────      │ • LLM           │
+│ HTTP Streaming      │    Response Frames            │ • Cloud (opt)   │
+└─────────────────────┘                               └─────────────────┘
 ```
 
-## gRPC Protocol
+### Binary Frame Protocol
 
-- **StreamAudio**: Bidirectional stream for audio chunks and responses
-- **PlayAudio**: Stream TTS audio from hub to relay
-- **Audio format**: 16kHz, mono, PCM
+Optimized for ESP32 compatibility with minimal memory overhead:
 
-## Testing
+```
+Frame Header (24 bytes):
+┌─────────┬──────┬─────────┬────────┬─────────┬──────────┬───────────┐
+│ Magic   │ Type │ Reserved│ Length │ Session │ Sequence │ Timestamp │
+│ 4 bytes │1 byte│ 1 byte  │2 bytes │ 4 bytes │ 4 bytes  │ 8 bytes   │
+└─────────┴──────┴─────────┴────────┴─────────┴──────────┴───────────┘
 
-Use the provided test script to verify wake word functionality:
+Frame Types:
+• 0x01 - Audio Data      • 0x10 - Heartbeat     • 0x20 - Response
+• 0x02 - Audio End       • 0x11 - Handshake     • 0x21 - Status
+• 0x03 - Wake Word       • 0x12 - Error
+                         • 0x13 - Arbitration
+
+Max Frame Size: 4KB (ESP32 memory optimized)
+```
+
+### Streaming Flow
+
+1. **Audio Capture** → PortAudio captures 16kHz mono PCM
+2. **Wake Word Detection** → Local pattern matching for "Hey Loqa"
+3. **Frame Encoding** → Audio data encoded into binary frames
+4. **HTTP Streaming** → POST to `/stream/puck?puck_id={id}`
+5. **Response Processing** → TTS and status frames from hub
+6. **Audio Playback** → TTS audio via NATS integration
+
+## Usage
+
+### Quick Start
 
 ```bash
-# Run the test environment
-./tools/test-wake-word.sh
+# Build the relay
+go build -o bin/loqa-puck-go ./cmd
 
-# In another terminal, run the relay
-cd relay/test-go
-./test-relay --hub localhost:50051
+# Run with hub connection (hub must be running on localhost:3000)
+./bin/loqa-puck-go -hub http://localhost:3000 -id kitchen-puck
 
-# Test by saying: "Hey Loqa, turn on the lights"
+# Run with custom configuration
+./bin/loqa-puck-go -hub http://hub.local:3000 -id living-room-puck -nats nats://localhost:4222
 ```
 
-## Implementation Status
+### Configuration
 
-- [x] Connect to hub service
-- [x] Test end-to-end audio pipeline  
-- [x] Add wake word detection
-- [ ] Implement TTS audio playback
-- [ ] Add device-specific configuration
-- [ ] Optimize power consumption
+Environment variables:
+- `HUB_ADDRESS`: Hub HTTP address (default: http://localhost:3000)
+- `PUCK_ID`: Unique puck identifier (default: loqa-puck-001)
+- `WAKE_WORD_THRESHOLD`: Detection confidence (default: 0.7)
+- `AUDIO_SAMPLE_RATE`: Audio capture rate (default: 16000)
+- `NATS_URL`: NATS server URL (default: nats://localhost:4222)
+
+### Wake Word Detection
+
+The relay includes local wake word detection:
+
+- **Wake phrase**: "Hey Loqa"
+- **Algorithm**: Energy envelope pattern matching
+- **Threshold**: Configurable confidence level (0.0 - 1.0)
+- **Privacy**: Only transmits audio after wake word detection
+
+## API Integration
+
+### Streaming Endpoint
+
+The relay connects to the hub's streaming endpoint:
+
+```http
+POST /stream/puck?puck_id={puck_id}
+Content-Type: application/octet-stream
+Transfer-Encoding: chunked
+X-Puck-ID: {puck_id}
+X-Session-ID: {session_id}
+
+[Binary frame data stream]
+```
+
+### Response Handling
+
+The relay processes various frame types from the hub:
+
+- **Response Frames (0x20)**: TTS audio and command responses
+- **Status Frames (0x21)**: System status and configuration updates
+- **Error Frames (0x12)**: Error messages and diagnostics
+- **Heartbeat Frames (0x10)**: Connection keep-alive
 
 ## Development
 
 ### Building
-```bash
-# Use the project build script
-./tools/build.sh
 
-# Or build manually
-cd relay/test-go
-go mod tidy
-go build -o test-relay ./cmd
+```bash
+# Development build
+make build
+
+# Production build with optimizations
+go build -ldflags="-w -s" -o bin/loqa-puck-go ./cmd
+
+# Cross-compilation for ARM (ESP32 preparation)
+GOOS=linux GOARCH=arm GOARM=7 go build -o bin/loqa-puck-go-arm ./cmd
 ```
 
-### Configuration
-Environment variables:
-- `HUB_ADDRESS`: Hub gRPC address (default: localhost:50051)
-- `RELAY_ID`: Unique relay identifier (default: test-relay)
-- `WAKE_WORD_THRESHOLD`: Detection confidence (default: 0.7)
-- `AUDIO_SAMPLE_RATE`: Audio capture rate (default: 16000)
+### Testing
 
-### Hardware Requirements
-- Microphone input
-- Audio output (for TTS responses)
-- Network connectivity to hub 
-# CI cache refresh
+```bash
+# Run all tests
+make test
+
+# Run tests with coverage
+make test-coverage
+
+# Run quality checks
+make quality-check
+```
+
+### Docker
+
+```bash
+# Build Docker image
+docker build -t loqalabs/loqa-puck-go .
+
+# Run in container
+docker run --rm \
+  -e HUB_ADDRESS=http://host.docker.internal:3000 \
+  -e PUCK_ID=docker-puck \
+  loqalabs/loqa-puck-go
+```
+
+## Hardware Requirements
+
+### Development
+- Microphone input (built-in or USB)
+- Audio output (speakers/headphones)
+- Network connectivity to hub
+
+### Production (ESP32 Target)
+- ESP32-S3 or compatible (4MB+ PSRAM recommended)
+- I2S microphone (INMP441 or similar)
+- I2S DAC/amplifier for audio output
+- WiFi connectivity
+
+## Implementation Status
+
+- [x] HTTP/1.1 streaming transport
+- [x] Binary frame protocol
+- [x] Audio capture and playback
+- [x] Wake word detection
+- [x] Real-time streaming to hub
+- [x] TTS response handling via NATS
+- [x] ESP32-compatible frame limits
+- [ ] Power optimization for embedded deployment
+- [ ] ESP32 firmware port
+- [ ] Hardware abstraction layer
+
+## ESP32 Preparation
+
+This Go implementation is designed as the reference for ESP32 firmware:
+
+### Memory Optimization
+- 4KB maximum frame size
+- Efficient binary serialization
+- Minimal HTTP headers
+- Stream-based processing
+
+### Protocol Simplification
+- HTTP/1.1 (simpler than gRPC for embedded)
+- Binary frames (efficient parsing)
+- Stateless design
+- Connection management with heartbeats
+
+### Audio Pipeline
+- 16kHz mono PCM (ESP32 I2S compatible)
+- Local wake word detection
+- Chunked audio transmission
+- Real-time response playback
+
+## Testing Integration
+
+### With Hub Service
+
+```bash
+# Start hub service (in loqa-hub repository)
+docker-compose up -d
+
+# In another terminal, run relay
+./bin/loqa-puck-go -hub http://localhost:3000
+
+# Test wake word: "Hey Loqa, what time is it?"
+```
+
+### End-to-End Testing
+
+```bash
+# Use the provided test script
+./scripts/test-wake-word.sh
+
+# Test streaming: "Hey Loqa, turn on the lights"
+# Expected: Audio streaming → Intent processing → Device command → TTS response
+```
+
+## Performance Characteristics
+
+### Latency Targets
+- **Wake word detection**: <100ms
+- **Audio transmission**: <50ms per frame
+- **Response latency**: <500ms (hub dependent)
+
+### Resource Usage
+- **Memory**: <50MB (Go runtime)
+- **CPU**: <5% on modern hardware
+- **Network**: ~32Kbps for continuous audio
+
+### ESP32 Projections
+- **Memory**: <2MB (firmware size)
+- **RAM**: <512KB (runtime)
+- **Network**: Same ~32Kbps bandwidth
+
+## License
+
+AGPL v3 - Copyleft license requiring source disclosure for derivatives.
+
+## Security
+
+Report security issues to security@loqalabs.com
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Run quality checks: `make quality-check`
+4. Submit pull request with tests
+
+For ESP32 firmware development, use this implementation as the protocol reference.
